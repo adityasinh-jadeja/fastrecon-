@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Virtual environments
+.env
+.venv
+venv/
+env/
+
+# FastRecon data (generated at runtime)
+reports/
+data/
+*.db
+recon_results.json
+recon_results.html
+test_*.json
+test_*.html
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Agents config
+.agents/
+
+# Node (if any)
+node_modules/

@@ -1,0 +1,29 @@
+# FastRecon v3.1 — Docker Compose
+# Run: docker-compose up --build
+# Open: http://localhost:5000
+
+version: "3.9"
+
+services:
+  fastrecon:
+    build: .
+    container_name: fastrecon
+    ports:
+      - "5000:5000"
+    volumes:
+      # Persist scan reports on host
+      - ./reports:/app/reports
+      # Persist SQLite database on host
+      - ./data:/app/data
+    environment:
+      - PYTHONUNBUFFERED=1
+      # Optional: Set webhook URLs via environment
+      # - FASTRECON_DISCORD_WEBHOOK=https://discord.com/api/webhooks/...
+      # - FASTRECON_SLACK_WEBHOOK=https://hooks.slack.com/services/...
+    restart: unless-stopped
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G

@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastRecon ⚡ — Scan Results</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #0a0e17; color: #e2e8f0; min-height: 100vh; }
+        .grid-bg { position: fixed; inset: 0; background-image: radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px); background-size: 32px 32px; pointer-events: none; z-index: 0; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; position: relative; z-index: 1; }
+
+        /* Header */
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+        .logo-sm { font-size: 1.5rem; font-weight: 800; background: linear-gradient(135deg, #06d6a0, #118ab2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-decoration: none; }
+        .nav-links { display: flex; gap: 12px; }
+        .nav-link { color: #64748b; text-decoration: none; font-size: 0.85rem; padding: 6px 12px; border-radius: 6px; transition: all 0.2s; }
+        .nav-link:hover { color: #e2e8f0; background: rgba(255,255,255,0.05); }
+
+        /* Glass card */
+        .glass { background: rgba(17, 24, 39, 0.7); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.06); border-radius: 14px; }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 4px; margin-bottom: 24px; overflow-x: auto; padding-bottom: 4px; flex-wrap: wrap; }
+        .tab { padding: 10px 18px; border-radius: 8px; font-size: 0.85rem; font-weight: 500; color: #64748b; cursor: pointer; transition: all 0.2s; border: 1px solid transparent; white-space: nowrap; }
+        .tab:hover { color: #e2e8f0; background: rgba(255,255,255,0.03); }
+        .tab.active { color: #06d6a0; background: rgba(6, 214, 160, 0.1); border-color: rgba(6, 214, 160, 0.2); }
+        .tab .count { background: rgba(255,255,255,0.1); padding: 1px 6px; border-radius: 10px; font-size: 0.7rem; margin-left: 4px; }
+
+        /* Section */
+        .section { display: none; }
+        .section.active { display: block; }
+        .section-card { padding: 20px; margin-bottom: 16px; }
+        .section-title { font-size: 1.1rem; font-weight: 700; color: #06d6a0; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+
+        /* Risk overview */
+        .risk-overview { display: grid; grid-template-columns: 200px 1fr; gap: 20px; align-items: center; margin-bottom: 20px; }
+        .risk-circle { width: 120px; height: 120px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0 auto; }
+        .risk-score { font-size: 2rem; font-weight: 900; color: white; }
+        .risk-label { font-size: 0.75rem; color: rgba(255,255,255,0.7); text-transform: uppercase; letter-spacing: 1px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px; }
+        .stat-card { text-align: center; padding: 14px; background: rgba(0,0,0,0.2); border-radius: 10px; }
+        .stat-value { font-size: 1.6rem; font-weight: 800; }
+        .stat-label-sm { font-size: 0.65rem; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
+
+        /* Alert cards */
+        .alert-card { background: rgba(10, 14, 23, 0.6); border-radius: 10px; padding: 14px 16px; margin-bottom: 8px; border-left: 4px solid; transition: transform 0.15s; }
+        .alert-card:hover { transform: translateX(4px); }
+        .alert-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+        .sev-badge { padding: 3px 8px; border-radius: 4px; font-size: 0.65rem; font-weight: 700; color: white; }
+        .alert-type { font-weight: 600; font-size: 0.9rem; }
+        .alert-detail { font-size: 0.8rem; color: #94a3b8; margin: 3px 0; }
+        .alert-evidence { font-size: 0.75rem; color: #64748b; }
+        .alert-evidence code { background: rgba(255,255,255,0.05); padding: 1px 4px; border-radius: 3px; }
+        .remediation-box { background: rgba(6, 214, 160, 0.08); border-radius: 6px; padding: 8px 10px; margin-top: 6px; font-size: 0.75rem; color: #06d6a0; }
+
+        /* Tables */
+        table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        th { background: rgba(6, 214, 160, 0.08); color: #06d6a0; padding: 10px 12px; text-align: left; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        td { padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+        tr:hover { background: rgba(255,255,255,0.02); }
+
+        /* Tech items */
+        .tech-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+        .tech-card { background: rgba(0,0,0,0.2); border-radius: 8px; padding: 12px; display: flex; align-items: center; gap: 10px; }
+        .tech-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+        .tech-name { font-weight: 600; font-size: 0.85rem; }
+        .tech-cat { font-size: 0.7rem; color: #64748b; }
+
+        /* Header grade */
+        .grade-display { text-align: center; margin-bottom: 20px; }
+        .grade-big { font-size: 3rem; font-weight: 900; }
+        .grade-sub { color: #64748b; font-size: 0.85rem; }
+
+        /* Port styling */
+        .port-dangerous { background: rgba(239, 71, 111, 0.08); }
+        .status-open { color: #06d6a0; font-weight: 600; }
+        .status-public { color: #ef476f; font-weight: 700; }
+        .status-private { color: #ffd166; }
+
+        /* Empty state */
+        .empty-state { text-align: center; padding: 40px; color: #475569; }
+        .empty-state .icon { font-size: 2rem; margin-bottom: 8px; }
+
+        /* Loading */
+        .loading { text-align: center; padding: 40px; color: #64748b; }
+        .spinner { width: 30px; height: 30px; border: 3px solid rgba(6,214,160,0.2); border-top-color: #06d6a0; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .risk-overview { grid-template-columns: 1fr; }
+            .stats-grid { grid-template-columns: repeat(4, 1fr); }
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <div class="grid-bg"></div>
+
+    <div class="container">
+        <!-- Header -->
+        <div class="page-header">
+            <a href="/" class="logo-sm">⚡ FastRecon</a>
+            <div class="nav-links">
+                <a href="/" class="nav-link">New Scan</a>
+                <a href="/api/report/{{ scan_id }}" class="nav-link" target="_blank">📄 Full Report</a>
+                <a href="/api/results/{{ scan_id }}" class="nav-link" target="_blank">📥 JSON</a>
+            </div>
+        </div>
+
+        <!-- Content loaded via JS -->
+        <div id="content">
+            <div class="loading">
+                <div class="spinner"></div>
+                <div>Loading scan results...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const scanId = '{{ scan_id }}';
+        const sevColors = { CRITICAL: '#ef476f', HIGH: '#f77f00', MEDIUM: '#ffd166', LOW: '#06d6a0', INFO: '#6c757d' };
+        const riskColors = { CRITICAL: '#ef476f', HIGH: '#f77f00', MEDIUM: '#ffd166', LOW: '#06d6a0', CLEAN: '#06d6a0' };
+        let resultData = null;
+
+        window.addEventListener('load', async () => {
+            try {
+                const res = await fetch(`/api/results/${scanId}`);
+                if (!res.ok) throw new Error('Scan not found');
+                resultData = await res.json();
+                renderResults(resultData);
+            } catch (e) {
+                document.getElementById('content').innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">🔍</div>
+                        <div>Scan results not found or still in progress.</div>
+                        <div style="margin-top:8px"><a href="/" style="color:#06d6a0">Start a new scan</a></div>
+                    </div>`;
+            }
+        });
+
+        function renderResults(data) {
+            const stats = data.stats || {};
+            const riskLevel = data.riskLevel || 'N/A';
+            const riskScore = data.riskScore || 0;
+            const rc = riskColors[riskLevel] || '#6c757d';
+
+            let html = `
+                <!-- Tabs -->
+                <div class="tabs">
+                    <div class="tab active" onclick="switchTab('overview')">📊 Overview</div>
+                    <div class="tab" onclick="switchTab('vulns')">🐛 Vulnerabilities <span class="count">${(data.vulnerabilities||[]).length}</span></div>
+                    <div class="tab" onclick="switchTab('alerts')">🚨 Alerts <span class="count">${stats.totalAlerts||0}</span></div>
+                    <div class="tab" onclick="switchTab('ports')">🔌 Ports <span class="count">${(data.openPorts||[]).length}</span></div>
+                    <div class="tab" onclick="switchTab('endpoints')">📂 Endpoints <span class="count">${(data.endpoints||[]).length}</span></div>
+                    <div class="tab" onclick="switchTab('tech')">🔬 Technologies <span class="count">${(data.technologies||[]).length}</span></div>
+                    <div class="tab" onclick="switchTab('headers')">🛡️ Headers</div>
+                    <div class="tab" onclick="switchTab('cloud')">☁️ Cloud <span class="count">${(data.cloudBuckets||[]).length}</span></div>
+                    <div class="tab" onclick="switchTab('dns')">🌐 DNS</div>
+                    <div class="tab" onclick="switchTab('subdomains')">🏠 Subdomains <span class="count">${stats.subdomainsDiscovered||0}</span></div>
+                </div>
+
+                <!-- OVERVIEW -->
+                <div class="section active" id="section-overview">
+                    <div class="glass section-card">
+                        <div class="risk-overview">
+                            <div>
+                                <div class="risk-circle" style="background: linear-gradient(135deg, ${rc}, ${rc}88);">
+                                    <div class="risk-score">${riskScore}</div>
+                                    <div class="risk-label">${riskLevel}</div>
+                                </div>
+                            </div>
+                            <div class="stats-grid">
+                                <div class="stat-card"><div class="stat-value" style="color:#118ab2">${stats.subdomainsDiscovered||0}</div><div class="stat-label-sm">Subdomains</div></div>
+                                <div class="stat-card"><div class="stat-value" style="color:#06d6a0">${stats.liveHosts||0}</div><div class="stat-label-sm">Live Hosts</div></div>
+                                <div class="stat-card"><div class="stat-value" style="color:#9b5de5">${stats.openPorts||0}</div><div class="stat-label-sm">Open Ports</div></div>
+                                <div class="stat-card"><div class="stat-value" style="color:#ef476f">${stats.vulnerabilities||0}</div><div class="stat-label-sm">Vulnerabilities</div></div>
+                                <div class="stat-card"><div class="stat-value" style="color:#ef476f">${stats.criticalAlerts||0}</div><div class="stat-label-sm">Critical</div></div>
+                                <div class="stat-card"><div class="stat-value" style="color:#f77f00">${stats.highAlerts||0}</div><div class="stat-label-sm">High</div></div>
+                                <div class="stat-card"><div class="stat-value" style="color:#ffd166">${stats.mediumAlerts||0}</div><div class="stat-label-sm">Medium</div></div>
+                                <div class="stat-card"><div class="stat-value" style="color:#06d6a0">${stats.lowAlerts||0}</div><div class="stat-label-sm">Low</div></div>
+                            </div>
+                        </div>
+                        <div style="color:#64748b; font-size:0.8rem; text-align:center; margin-top:8px;">
+                            Target: ${esc(data.target)} · Duration: ${esc(data.scanDuration)} · Mode: ${esc(data.scanMode)} · ${esc(data.scanDate)}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VULNERABILITIES -->
+                <div class="section" id="section-vulns">
+                    <div class="glass section-card">
+                        <div class="section-title">🐛 Vulnerability Findings</div>
+                        ${renderVulns(data.vulnerabilities || [])}
+                    </div>
+                </div>
+
+                <!-- ALERTS -->
+                <div class="section" id="section-alerts">
+                    <div class="glass section-card">
+                        <div class="section-title">🚨 All Security Alerts</div>
+                        ${renderAlerts(data.alerts || [])}
+                    </div>
+                </div>
+
+                <!-- PORTS -->
+                <div class="section" id="section-ports">
+                    <div class="glass section-card">
+                        <div class="section-title">🔌 Open Ports</div>
+                        ${renderPorts(data.openPorts || [])}
+                    </div>
+                </div>
+
+                <!-- ENDPOINTS -->
+                <div class="section" id="section-endpoints">
+                    <div class="glass section-card">
+                        <div class="section-title">📂 Discovered Endpoints</div>
+                        ${renderEndpoints(data.endpoints || [])}
+                        ${(data.apiEndpoints||[]).length > 0 ? `
+                            <div class="section-title" style="margin-top:20px;">🔗 API Endpoints (from JS)</div>
+                            <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                                ${data.apiEndpoints.map(e => `<code style="background:rgba(255,255,255,0.05);padding:3px 8px;border-radius:4px;font-size:0.75rem;">${esc(e)}</code>`).join('')}
+                            </div>` : ''}
+                    </div>
+                </div>
+
+                <!-- TECHNOLOGIES -->
+                <div class="section" id="section-tech">
+                    <div class="glass section-card">
+                        <div class="section-title">🔬 Detected Technologies</div>
+                        ${renderTech(data.technologies || [])}
+                        ${renderInsights(data.techInsights || [])}
+                    </div>
+                </div>
+
+                <!-- HEADERS -->
+                <div class="section" id="section-headers">
+                    <div class="glass section-card">
+                        <div class="section-title">🛡️ Security Header Analysis</div>
+                        ${renderHeaders(data.headerReport || {})}
+                    </div>
+                </div>
+
+                <!-- CLOUD -->
+                <div class="section" id="section-cloud">
+                    <div class="glass section-card">
+                        <div class="section-title">☁️ Cloud Storage Buckets</div>
+                        ${renderCloud(data.cloudBuckets || [])}
+                    </div>
+                </div>
+
+                <!-- DNS -->
+                <div class="section" id="section-dns">
+                    <div class="glass section-card">
+                        <div class="section-title">🌐 DNS Information</div>
+                        ${renderDns(data.dnsInfo || {})}
+                    </div>
+                </div>
+
+                <!-- SUBDOMAINS -->
+                <div class="section" id="section-subdomains">
+                    <div class="glass section-card">
+                        <div class="section-title">🏠 Live Hosts</div>
+                        ${renderSubdomains(data.liveHosts || [])}
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('content').innerHTML = html;
+        }
+
+        function switchTab(name) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            event.target.closest('.tab').classList.add('active');
+            document.getElementById('section-' + name).classList.add('active');
+        }
+
+        function renderAlerts(alerts) {
+            if (!alerts.length) return '<div class="empty-state"><div class="icon">✅</div>No alerts found</div>';
+            return alerts.map(a => `
+                <div class="alert-card" style="border-color: ${sevColors[a.severity]||'#6c757d'}">
+                    <div class="alert-header">
+                        <span class="sev-badge" style="background:${sevColors[a.severity]}">${esc(a.severity)}</span>
+                        <span class="alert-type">${esc(a.type)}</span>
+                    </div>
+                    <div class="alert-detail"><strong>Asset:</strong> ${esc(a.asset)}</div>
+                    <div class="alert-detail">${esc(a.details)}</div>
+                    ${a.evidence ? `<div class="alert-evidence"><strong>Evidence:</strong> <code>${esc(a.evidence.substring(0,200))}</code></div>` : ''}
+                    ${a.remediation ? `<div class="remediation-box">💡 <strong>Fix:</strong> ${esc(a.remediation)}</div>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function renderVulns(vulns) {
+            if (!vulns.length) return '<div class="empty-state"><div class="icon">✅</div>No vulnerabilities detected</div>';
+            return renderAlerts(vulns);
+        }
+
+        function renderPorts(ports) {
+            if (!ports.length) return '<div class="empty-state"><div class="icon">🔒</div>No open ports found (or port scan was skipped)</div>';
+            const dangerous = [6379,27017,9200,11211,5900,3389,23,445,1433,3306,5432];
+            return `<table><tr><th>Port</th><th>Service</th><th>State</th><th>Banner</th></tr>
+                ${ports.map(p => `<tr class="${dangerous.includes(p.port)?'port-dangerous':''}">
+                    <td><strong>${p.port}</strong></td>
+                    <td>${esc(p.service)}</td>
+                    <td><span class="status-open">OPEN</span></td>
+                    <td style="font-size:0.75rem;color:#94a3b8">${esc((p.banner||'').substring(0,100))}</td>
+                </tr>`).join('')}</table>`;
+        }
+
+        function renderEndpoints(eps) {
+            if (!eps.length) return '<div class="empty-state"><div class="icon">📭</div>No endpoints discovered (or endpoint scan was skipped)</div>';
+            return `<table><tr><th>Severity</th><th>Path</th><th>Status</th><th>Type</th></tr>
+                ${eps.map(e => `<tr>
+                    <td><span class="sev-badge" style="background:${sevColors[e.severity]}">${esc(e.severity)}</span></td>
+                    <td><code>${esc(e.path)}</code></td>
+                    <td>${e.status}</td>
+                    <td style="color:#64748b">${esc(e.type)}</td>
+                </tr>`).join('')}</table>`;
+        }
+
+        function renderTech(techs) {
+            if (!techs.length) return '<div class="empty-state"><div class="icon">❓</div>No technologies detected</div>';
+            const catIcons = { CMS:'📝', Framework:'⚙️', 'JavaScript Library':'📚', 'Web Server':'🖥️', 'WAF / Security':'🛡️', CDN:'🌐', Analytics:'📊', Other:'🔧' };
+            return `<div class="tech-grid">${techs.map(t => `
+                <div class="tech-card">
+                    <div class="tech-icon" style="background:rgba(6,214,160,0.1)">${catIcons[t.category]||'🔧'}</div>
+                    <div><div class="tech-name">${esc(t.name)}</div><div class="tech-cat">${esc(t.category)} · ${t.confidence}%</div></div>
+                </div>
+            `).join('')}</div>`;
+        }
+
+        function renderInsights(insights) {
+            if (!insights.length) return '';
+            return `<div class="section-title" style="margin-top:20px;">💡 Security Insights</div>` +
+                insights.map(i => `<div class="alert-card" style="border-color:${sevColors[i.risk]||'#6c757d'}">
+                    <div class="alert-header"><span class="sev-badge" style="background:${sevColors[i.risk]}">${esc(i.risk)}</span><span class="alert-type">${esc(i.technology)}</span></div>
+                    <div class="alert-detail">${esc(i.insight)}</div>
+                </div>`).join('');
+        }
+
+        function renderHeaders(hr) {
+            if (!hr.headers) return '<div class="empty-state"><div class="icon">ℹ️</div>No header analysis data</div>';
+            const gradeColor = hr.gradeColor || '#6c757d';
+            let rows = Object.entries(hr.headers).map(([name, h]) => `
+                <tr style="${h.present?'':'opacity:0.6'}">
+                    <td>${h.present?'✅':'❌'} ${esc(name)}</td>
+                    <td><code style="font-size:0.75rem">${h.present?esc(h.value.substring(0,60)):'MISSING'}</code></td>
+                    <td style="font-size:0.75rem;color:#64748b">${esc(h.description)}</td>
+                </tr>
+            `).join('');
+            return `<div class="grade-display">
+                <div class="grade-big" style="color:${gradeColor}">${esc(hr.grade)}</div>
+                <div class="grade-sub">Security Score: ${hr.score}/100 · ${hr.totalPresent}/${hr.totalHeaders} headers present</div>
+            </div><table><tr><th>Header</th><th>Value</th><th>Description</th></tr>${rows}</table>`;
+        }
+
+        function renderCloud(buckets) {
+            if (!buckets.length) return '<div class="empty-state"><div class="icon">☁️</div>No cloud buckets found (or cloud scan was skipped)</div>';
+            return `<table><tr><th>Bucket Name</th><th>Provider</th><th>Status</th><th>URL</th></tr>
+                ${buckets.map(b => `<tr>
+                    <td>${esc(b.name)}</td>
+                    <td>${esc(b.provider)}</td>
+                    <td><span class="status-${(b.status||'').toLowerCase()}">${esc(b.status)}</span></td>
+                    <td><a href="${esc(b.url)}" target="_blank" style="color:#118ab2;font-size:0.8rem">Open</a></td>
+                </tr>`).join('')}</table>`;
+        }
+
+        function renderDns(dns) {
+            if (!dns || !dns.a_records) return '<div class="empty-state"><div class="icon">🌐</div>No DNS data available</div>';
+            let html = '<table><tr><th>Record Type</th><th>Values</th></tr>';
+            if (dns.a_records?.length) html += `<tr><td><strong>A</strong></td><td>${dns.a_records.map(r=>esc(r)).join(', ')}</td></tr>`;
+            if (dns.aaaa_records?.length) html += `<tr><td><strong>AAAA</strong></td><td>${dns.aaaa_records.map(r=>esc(r)).join(', ')}</td></tr>`;
+            if (dns.ns_records?.length) html += `<tr><td><strong>NS</strong></td><td>${dns.ns_records.map(r=>esc(r)).join(', ')}</td></tr>`;
+            if (dns.mx_records?.length) html += `<tr><td><strong>MX</strong></td><td>${dns.mx_records.map(r=>esc(r)).join('<br>')}</td></tr>`;
+            if (dns.txt_records?.length) html += `<tr><td><strong>TXT</strong></td><td style="word-break:break-all">${dns.txt_records.map(r=>`<code style="font-size:0.7rem">${esc(r)}</code>`).join('<br>')}</td></tr>`;
+            html += `<tr><td><strong>Wildcard DNS</strong></td><td>${dns.wildcard ? '⚠️ YES (false positives possible)' : '✅ No'}</td></tr>`;
+            html += '</table>';
+            return html;
+        }
+
+        function renderSubdomains(hosts) {
+            if (!hosts.length) return '<div class="empty-state"><div class="icon">🏠</div>No live hosts found</div>';
+            return `<table><tr><th>Subdomain</th><th>Status</th><th>Title</th><th>Server</th></tr>
+                ${hosts.map(h => `<tr>
+                    <td><a href="${esc(h.url)}" target="_blank" style="color:#118ab2">${esc(h.subdomain)}</a></td>
+                    <td>${h.status}</td>
+                    <td style="font-size:0.8rem;max-width:200px;overflow:hidden;text-overflow:ellipsis">${esc(h.title)}</td>
+                    <td style="font-size:0.8rem;color:#64748b">${esc(h.server)}</td>
+                </tr>`).join('')}</table>`;
+        }
+
+        function esc(str) {
+            if (str === null || str === undefined) return '';
+            return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastRecon ⚡ — Automated Security Scanner</title>
+    <meta name="description" content="FastRecon automated reconnaissance and vulnerability scanning framework. Enter a domain and get a complete security assessment.">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #0a0e17; color: #e2e8f0; min-height: 100vh; overflow-x: hidden; }
+
+        /* Background grid */
+        .grid-bg { position: fixed; inset: 0; background-image: radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px); background-size: 32px 32px; pointer-events: none; z-index: 0; }
+
+        /* Scan line animation */
+        .scan-line { position: fixed; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, #06d6a0, transparent); animation: scan-anim 3s ease-in-out infinite; pointer-events: none; z-index: 50; opacity: 0; transition: opacity 0.5s; }
+        .scan-line.active { opacity: 1; }
+        @keyframes scan-anim { 0% { transform: translateY(-100%); } 100% { transform: translateY(100vh); } }
+
+        /* Container */
+        .container { max-width: 960px; margin: 0 auto; padding: 32px 20px; position: relative; z-index: 1; }
+
+        /* Header */
+        .header { text-align: center; margin-bottom: 32px; }
+        .logo { font-size: 2.8rem; font-weight: 900; background: linear-gradient(135deg, #06d6a0 0%, #118ab2 50%, #9b5de5 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: -1px; }
+        .tagline { color: #64748b; font-size: 0.95rem; margin-top: 6px; }
+        .version { color: #475569; font-size: 0.75rem; margin-top: 4px; }
+
+        /* Glass card */
+        .glass { background: rgba(17, 24, 39, 0.7); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 2px; margin-bottom: 20px; background: rgba(17,24,39,0.5); border-radius: 12px; padding: 4px; border: 1px solid rgba(255,255,255,0.06); }
+        .tab { flex: 1; padding: 10px 16px; text-align: center; cursor: pointer; border-radius: 10px; font-size: 0.85rem; font-weight: 600; color: #64748b; transition: all 0.3s; }
+        .tab:hover { color: #94a3b8; }
+        .tab.active { background: linear-gradient(135deg, rgba(6,214,160,0.15), rgba(17,138,178,0.15)); color: #06d6a0; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Scan form */
+        .scan-card { padding: 28px; margin-bottom: 20px; }
+        .input-group { display: flex; gap: 10px; margin-bottom: 16px; }
+        .domain-input { flex: 1; background: rgba(10, 14, 23, 0.8); border: 2px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 14px 18px; font-size: 1rem; color: #e2e8f0; font-family: 'Inter', sans-serif; outline: none; transition: border-color 0.3s; }
+        .domain-input:focus { border-color: #06d6a0; }
+        .domain-input::placeholder { color: #475569; }
+        .scan-btn { background: linear-gradient(135deg, #06d6a0, #118ab2); border: none; border-radius: 10px; padding: 14px 28px; font-size: 1rem; font-weight: 700; color: white; cursor: pointer; transition: all 0.3s; font-family: 'Inter', sans-serif; white-space: nowrap; }
+        .scan-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(6, 214, 160, 0.3); }
+        .scan-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        /* Options */
+        .options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+        .option-group { display: flex; flex-direction: column; gap: 4px; }
+        .option-label { font-size: 0.7rem; color: #64748b; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+        select { background: rgba(10, 14, 23, 0.8); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 10px 14px; color: #e2e8f0; font-family: 'Inter', sans-serif; font-size: 0.85rem; outline: none; cursor: pointer; }
+        select:focus { border-color: #06d6a0; }
+        .toggles { display: flex; flex-wrap: wrap; gap: 10px; }
+        .toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.8rem; color: #94a3b8; }
+        .toggle input[type="checkbox"] { accent-color: #06d6a0; width: 15px; height: 15px; }
+
+        /* Progress */
+        .progress-card { padding: 20px; margin-bottom: 20px; display: none; }
+        .progress-card.active { display: block; }
+        .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .progress-title { font-size: 1rem; font-weight: 600; }
+        .progress-phase { color: #06d6a0; font-size: 0.85rem; }
+        .progress-bar-outer { width: 100%; height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; margin-bottom: 10px; }
+        .progress-bar-inner { height: 100%; background: linear-gradient(90deg, #06d6a0, #118ab2); border-radius: 3px; transition: width 0.5s ease; width: 0%; }
+        .progress-log { max-height: 180px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 0.75rem; color: #64748b; background: rgba(0,0,0,0.3); border-radius: 8px; padding: 10px; }
+        .progress-log .log-entry { padding: 2px 0; }
+        .progress-log .log-entry.phase { color: #06d6a0; font-weight: 600; }
+        .progress-log .log-entry.error { color: #ef476f; }
+        .progress-log .log-entry.complete { color: #06d6a0; }
+
+        /* Results preview */
+        .results-preview { padding: 20px; margin-bottom: 20px; display: none; }
+        .results-preview.active { display: block; }
+        .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .risk-badge { display: inline-block; padding: 6px 16px; border-radius: 20px; font-weight: 700; font-size: 0.85rem; color: white; }
+        .result-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; margin-bottom: 16px; }
+        .mini-stat { text-align: center; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px; }
+        .mini-stat .value { font-size: 1.4rem; font-weight: 800; }
+        .mini-stat .label { font-size: 0.6rem; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
+        .result-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        .btn { padding: 9px 16px; border-radius: 8px; font-weight: 600; font-size: 0.8rem; cursor: pointer; border: none; font-family: 'Inter', sans-serif; transition: all 0.2s; text-decoration: none; display: inline-block; }
+        .btn-primary { background: linear-gradient(135deg, #06d6a0, #118ab2); color: white; }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(6,214,160,0.3); }
+        .btn-secondary { background: rgba(255,255,255,0.06); color: #e2e8f0; border: 1px solid rgba(255,255,255,0.1); }
+        .btn-secondary:hover { background: rgba(255,255,255,0.1); }
+        .btn-danger { background: rgba(239,71,111,0.15); color: #ef476f; border: 1px solid rgba(239,71,111,0.3); }
+        .btn-danger:hover { background: rgba(239,71,111,0.25); }
+        .btn-sm { padding: 6px 12px; font-size: 0.7rem; }
+
+        /* Section card */
+        .section-card { padding: 20px; margin-bottom: 16px; }
+        .section-title { font-size: 0.95rem; font-weight: 600; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+
+        /* Targets list */
+        .target-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); border-radius: 6px; transition: background 0.2s; }
+        .target-item:hover { background: rgba(255,255,255,0.03); }
+        .target-domain { font-weight: 500; font-size: 0.9rem; }
+        .target-meta { font-size: 0.7rem; color: #64748b; }
+        .target-actions { display: flex; gap: 6px; }
+
+        /* History */
+        .history-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); cursor: pointer; border-radius: 6px; transition: background 0.2s; }
+        .history-item:hover { background: rgba(255,255,255,0.03); }
+        .history-target { font-weight: 500; font-size: 0.9rem; }
+        .history-meta { font-size: 0.7rem; color: #64748b; }
+        .history-risk { font-weight: 600; font-size: 0.8rem; }
+        .history-actions { display: flex; gap: 6px; align-items: center; }
+
+        /* Subdomains table */
+        .search-bar { display: flex; gap: 8px; margin-bottom: 12px; }
+        .search-input { flex: 1; background: rgba(10,14,23,0.8); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 8px 14px; color: #e2e8f0; font-family: 'Inter', sans-serif; font-size: 0.85rem; outline: none; }
+        .search-input:focus { border-color: #06d6a0; }
+        .sub-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+        .sub-table th { background: rgba(6,214,160,0.1); color: #06d6a0; padding: 8px; text-align: left; font-weight: 600; font-size: 0.7rem; text-transform: uppercase; }
+        .sub-table td { padding: 7px 8px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+        .sub-table tr:hover { background: rgba(255,255,255,0.02); }
+        .sub-table input[type="checkbox"] { accent-color: #06d6a0; }
+        .status-live { color: #06d6a0; font-weight: 600; }
+        .status-dead { color: #ef476f; }
+        .status-new { background: rgba(6,214,160,0.15); color: #06d6a0; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600; }
+
+        /* Purge section */
+        .purge-section { display: flex; gap: 10px; align-items: center; padding: 12px; background: rgba(239,71,111,0.05); border: 1px solid rgba(239,71,111,0.15); border-radius: 8px; margin-top: 12px; }
+        .purge-section input { width: 60px; background: rgba(10,14,23,0.8); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 6px 10px; color: #e2e8f0; font-size: 0.85rem; text-align: center; }
+        .purge-section label { font-size: 0.8rem; color: #94a3b8; }
+
+        .empty-state { color: #475569; font-size: 0.85rem; text-align: center; padding: 24px; }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            .input-group { flex-direction: column; }
+            .options { grid-template-columns: 1fr; }
+            .logo { font-size: 2.2rem; }
+            .tabs { flex-wrap: wrap; }
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <div class="grid-bg"></div>
+    <div class="scan-line" id="scanLine"></div>
+
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo">⚡ FastRecon</div>
+            <div class="tagline">Automated Security Reconnaissance & Vulnerability Scanner</div>
+            <div class="version">v{{ version }} — Enter a domain and discover security flaws</div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('scan')">🚀 Scan</div>
+            <div class="tab" onclick="switchTab('targets')">🎯 Targets</div>
+            <div class="tab" onclick="switchTab('history')">📋 History</div>
+            <div class="tab" onclick="switchTab('subdomains')">🌐 Subdomains</div>
+        </div>
+
+        <!-- Tab: Scan -->
+        <div class="tab-content active" id="tab-scan">
+            <div class="glass scan-card">
+                <div class="input-group">
+                    <input type="text" class="domain-input" id="targetInput" placeholder="Enter target domain (e.g., example.com)" autocomplete="off">
+                    <button class="scan-btn" id="scanBtn" onclick="startScan()">🚀 Scan</button>
+                </div>
+                <div class="options">
+                    <div class="option-group">
+                        <div class="option-label">Scan Mode</div>
+                        <select id="scanMode">
+                            <option value="light">⚡ Light — Quick passive recon</option>
+                            <option value="normal" selected>🔍 Normal — Balanced scan</option>
+                            <option value="aggressive">💥 Aggressive — Deep scan</option>
+                        </select>
+                    </div>
+                    <div class="option-group">
+                        <div class="option-label">Skip Phases</div>
+                        <div class="toggles">
+                            <label class="toggle"><input type="checkbox" id="skipPorts"> Skip Ports</label>
+                            <label class="toggle"><input type="checkbox" id="skipVulns"> Skip Vulns</label>
+                            <label class="toggle"><input type="checkbox" id="skipCloud"> Skip Cloud</label>
+                            <label class="toggle"><input type="checkbox" id="skipEndpoints"> Skip Endpoints</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Progress -->
+            <div class="glass progress-card" id="progressCard">
+                <div class="progress-header">
+                    <div class="progress-title">🔍 Scanning <span id="progressTarget"></span></div>
+                    <div class="progress-phase" id="progressPhase">Initializing...</div>
+                </div>
+                <div class="progress-bar-outer">
+                    <div class="progress-bar-inner" id="progressBar"></div>
+                </div>
+                <div class="progress-log" id="progressLog"></div>
+            </div>
+
+            <!-- Results Preview -->
+            <div class="glass results-preview" id="resultsPreview">
+                <div class="result-header">
+                    <div>
+                        <h2 style="color: #06d6a0; font-size: 1.1rem;">✓ Scan Complete</h2>
+                        <div style="color: #64748b; font-size: 0.8rem;" id="resultTarget"></div>
+                    </div>
+                    <div class="risk-badge" id="riskBadge"></div>
+                </div>
+                <div class="result-stats" id="resultStats"></div>
+                <div class="result-actions">
+                    <a class="btn btn-primary" id="viewReportBtn" href="#" target="_blank">📄 Report</a>
+                    <a class="btn btn-secondary" id="downloadJsonBtn" href="#" target="_blank">📥 JSON</a>
+                    <a class="btn btn-secondary" id="downloadCsvBtn" href="#" target="_blank">📊 CSV</a>
+                    <button class="btn btn-secondary" onclick="startNewScan()">🔄 New Scan</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Targets -->
+        <div class="tab-content" id="tab-targets">
+            <div class="glass section-card">
+                <div class="section-title">🎯 Saved Targets</div>
+                <div class="input-group" style="margin-bottom: 16px;">
+                    <input type="text" class="domain-input" id="newTargetInput" placeholder="Add a target domain..." style="font-size: 0.9rem; padding: 10px 14px;">
+                    <button class="btn btn-primary" onclick="addTarget()" style="padding: 10px 20px;">+ Add</button>
+                </div>
+                <div id="targetsList">
+                    <div class="empty-state">No saved targets. Add one above.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: History -->
+        <div class="tab-content" id="tab-history">
+            <div class="glass section-card">
+                <div class="section-title">
+                    <span>📋 Scan History</span>
+                    <button class="btn btn-sm btn-secondary" onclick="loadHistory()">↻ Refresh</button>
+                </div>
+                <div id="historyList">
+                    <div class="empty-state">No scans yet. Start a scan from the Scan tab.</div>
+                </div>
+                <div class="purge-section">
+                    <label>Purge scans older than</label>
+                    <input type="number" id="purgeDays" value="30" min="1">
+                    <label>days</label>
+                    <button class="btn btn-sm btn-danger" onclick="purgeScans()">🗑 Purge</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Subdomains -->
+        <div class="tab-content" id="tab-subdomains">
+            <div class="glass section-card">
+                <div class="section-title">🌐 Subdomain Database</div>
+                <div class="search-bar">
+                    <select id="subTargetSelect" style="min-width: 180px;" onchange="loadSubdomains()">
+                        <option value="">Select target...</option>
+                    </select>
+                    <input type="text" class="search-input" id="subSearch" placeholder="Search subdomains..." oninput="loadSubdomains()">
+                    <button class="btn btn-sm btn-danger" id="bulkDeleteBtn" onclick="bulkDeleteSubdomains()" style="display:none;">🗑 Delete Selected</button>
+                </div>
+                <div id="subdomainsList">
+                    <div class="empty-state">Select a target to view subdomains.</div>
+                </div>
+                <div id="subdomainsInfo" style="text-align: right; color: #64748b; font-size: 0.7rem; margin-top: 8px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentScanId = null;
+        let eventSource = null;
+        let selectedSubIds = new Set();
+
+        // ──── Tab Switching ────
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach((t, i) => {
+                t.classList.toggle('active', t.textContent.toLowerCase().includes(tabName.substring(0,4)));
+            });
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById('tab-' + tabName).classList.add('active');
+
+            if (tabName === 'targets') loadTargets();
+            if (tabName === 'history') loadHistory();
+            if (tabName === 'subdomains') { loadTargetsForSelect(); loadSubdomains(); }
+        }
+
+        // ──── Scan ────
+        window.addEventListener('load', () => { loadHistory(); });
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('targetInput').addEventListener('keydown', e => {
+                if (e.key === 'Enter') startScan();
+            });
+        });
+
+        async function startScan() {
+            const target = document.getElementById('targetInput').value.trim();
+            if (!target) {
+                document.getElementById('targetInput').style.borderColor = '#ef476f';
+                setTimeout(() => document.getElementById('targetInput').style.borderColor = '', 2000);
+                return;
+            }
+
+            const mode = document.getElementById('scanMode').value;
+            const skipPorts = document.getElementById('skipPorts').checked;
+            const skipVulns = document.getElementById('skipVulns').checked;
+            const skipCloud = document.getElementById('skipCloud').checked;
+            const skipEndpoints = document.getElementById('skipEndpoints').checked;
+
+            document.getElementById('scanBtn').disabled = true;
+            document.getElementById('scanBtn').textContent = '⏳ Scanning...';
+            document.getElementById('targetInput').disabled = true;
+
+            document.getElementById('progressCard').classList.add('active');
+            document.getElementById('resultsPreview').classList.remove('active');
+            document.getElementById('progressTarget').textContent = target;
+            document.getElementById('progressLog').innerHTML = '';
+            document.getElementById('progressBar').style.width = '0%';
+            document.getElementById('scanLine').classList.add('active');
+
+            try {
+                const response = await fetch('/api/scan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ target, mode, skipPorts, skipVulns, skipCloud, skipEndpoints }),
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    currentScanId = data.scanId;
+                    listenProgress();
+                } else {
+                    addLog(data.error || 'Failed to start scan', 'error');
+                    resetControls();
+                }
+            } catch (err) {
+                addLog('Network error: ' + err.message, 'error');
+                resetControls();
+            }
+        }
+
+        function listenProgress() {
+            if (eventSource) eventSource.close();
+            eventSource = new EventSource('/api/progress');
+            eventSource.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                if (data.status === 'heartbeat') return;
+                if (data.phase) {
+                    document.getElementById('progressPhase').textContent = data.phase;
+                    addLog(`Phase ${data.phaseNum}/${data.totalPhases}: ${data.phase}`, 'phase');
+                    const pct = Math.round((data.phaseNum / data.totalPhases) * 100);
+                    document.getElementById('progressBar').style.width = pct + '%';
+                }
+                if (data.status === 'complete') {
+                    eventSource.close();
+                    addLog('✓ Scan complete!', 'complete');
+                    document.getElementById('progressBar').style.width = '100%';
+                    document.getElementById('scanLine').classList.remove('active');
+                    showResults(data);
+                    resetControls();
+                    loadHistory();
+                }
+                if (data.status === 'error') {
+                    eventSource.close();
+                    addLog('✗ Error: ' + (data.error || 'Unknown error'), 'error');
+                    document.getElementById('scanLine').classList.remove('active');
+                    resetControls();
+                }
+            };
+            eventSource.onerror = function() {
+                addLog('Connection lost', 'error');
+                eventSource.close();
+                resetControls();
+            };
+        }
+
+        function addLog(message, type = '') {
+            const log = document.getElementById('progressLog');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry ' + type;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        async function showResults(data) {
+            document.getElementById('resultsPreview').classList.add('active');
+            document.getElementById('resultTarget').textContent = data.target;
+            const riskColors = { CRITICAL: '#ef476f', HIGH: '#f77f00', MEDIUM: '#ffd166', LOW: '#06d6a0', CLEAN: '#06d6a0' };
+            const badge = document.getElementById('riskBadge');
+            const level = data.riskLevel || 'N/A';
+            const score = data.riskScore || 0;
+            badge.textContent = `${level} (${score}/100)`;
+            badge.style.background = riskColors[level] || '#6c757d';
+
+            try {
+                const res = await fetch(`/api/results/${currentScanId}`);
+                const result = await res.json();
+                const stats = result.stats || {};
+                document.getElementById('resultStats').innerHTML = `
+                    <div class="mini-stat"><div class="value" style="color:#118ab2">${stats.subdomainsDiscovered || 0}</div><div class="label">Subdomains</div></div>
+                    <div class="mini-stat"><div class="value" style="color:#06d6a0">${stats.liveHosts || 0}</div><div class="label">Live Hosts</div></div>
+                    <div class="mini-stat"><div class="value" style="color:#9b5de5">${stats.openPorts || 0}</div><div class="label">Open Ports</div></div>
+                    <div class="mini-stat"><div class="value" style="color:#ef476f">${stats.criticalAlerts || 0}</div><div class="label">Critical</div></div>
+                    <div class="mini-stat"><div class="value" style="color:#f77f00">${stats.highAlerts || 0}</div><div class="label">High</div></div>
+                    <div class="mini-stat"><div class="value" style="color:#ffd166">${stats.mediumAlerts || 0}</div><div class="label">Medium</div></div>
+                    <div class="mini-stat"><div class="value" style="color:#06d6a0">${stats.lowAlerts || 0}</div><div class="label">Low</div></div>
+                    <div class="mini-stat"><div class="value" style="color:#e2e8f0">${stats.totalAlerts || 0}</div><div class="label">Total</div></div>
+                `;
+            } catch (e) { console.error('Failed to load results:', e); }
+
+            document.getElementById('viewReportBtn').href = `/api/report/${currentScanId}`;
+            document.getElementById('downloadJsonBtn').href = `/api/export/${currentScanId}/json`;
+            document.getElementById('downloadCsvBtn').href = `/api/export/${currentScanId}/csv`;
+        }
+
+        function resetControls() {
+            document.getElementById('scanBtn').disabled = false;
+            document.getElementById('scanBtn').textContent = '🚀 Scan';
+            document.getElementById('targetInput').disabled = false;
+        }
+
+        function startNewScan() {
+            document.getElementById('resultsPreview').classList.remove('active');
+            document.getElementById('progressCard').classList.remove('active');
+            document.getElementById('targetInput').value = '';
+            document.getElementById('targetInput').focus();
+        }
+
+        // ──── Targets ────
+        async function loadTargets() {
+            try {
+                const res = await fetch('/api/targets');
+                const targets = await res.json();
+                const list = document.getElementById('targetsList');
+                if (!targets.length) {
+                    list.innerHTML = '<div class="empty-state">No saved targets. Add one above.</div>';
+                    return;
+                }
+                list.innerHTML = targets.map(t => `
+                    <div class="target-item">
+                        <div>
+                            <div class="target-domain">${t.domain}</div>
+                            <div class="target-meta">${t.last_scanned ? 'Last scan: ' + new Date(t.last_scanned).toLocaleString() : 'Never scanned'} ${t.notes ? '· ' + t.notes : ''}</div>
+                        </div>
+                        <div class="target-actions">
+                            <button class="btn btn-sm btn-primary" onclick="scanTarget('${t.domain}')">🚀 Scan</button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteTarget(${t.id})">✗</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (e) { console.error('Failed to load targets:', e); }
+        }
+
+        async function addTarget() {
+            const domain = document.getElementById('newTargetInput').value.trim();
+            if (!domain) return;
+            await fetch('/api/targets', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ domain }),
+            });
+            document.getElementById('newTargetInput').value = '';
+            loadTargets();
+        }
+
+        async function deleteTarget(id) {
+            if (!confirm('Delete this target and all its subdomains?')) return;
+            await fetch(`/api/targets/${id}`, { method: 'DELETE' });
+            loadTargets();
+        }
+
+        function scanTarget(domain) {
+            switchTab('scan');
+            document.getElementById('targetInput').value = domain;
+            startScan();
+        }
+
+        // ──── History ────
+        async function loadHistory() {
+            try {
+                const res = await fetch('/api/history');
+                const history = await res.json();
+                const list = document.getElementById('historyList');
+                if (!history.length) {
+                    list.innerHTML = '<div class="empty-state">No scans yet. Start a scan from the Scan tab.</div>';
+                    return;
+                }
+                const riskColors = { CRITICAL: '#ef476f', HIGH: '#f77f00', MEDIUM: '#ffd166', LOW: '#06d6a0', CLEAN: '#06d6a0' };
+                list.innerHTML = history.map(h => `
+                    <div class="history-item">
+                        <div onclick="window.open('/api/report/${h.id}', '_blank')" style="cursor:pointer; flex:1;">
+                            <div class="history-target">${h.target}</div>
+                            <div class="history-meta">${h.mode} mode · ${h.totalAlerts} alerts · ${h.newSubdomains || 0} new subs · ${h.duration || ''} · ${new Date(h.timestamp).toLocaleString()}</div>
+                        </div>
+                        <div class="history-actions">
+                            <span class="history-risk" style="color: ${riskColors[h.riskLevel] || '#6c757d'}">${h.riskLevel} (${h.riskScore})</span>
+                            <a class="btn btn-sm btn-secondary" href="/api/export/${h.id}/csv" title="CSV">📊</a>
+                            <a class="btn btn-sm btn-secondary" href="/api/export/${h.id}/json" title="JSON">📥</a>
+                            <button class="btn btn-sm btn-danger" onclick="deleteScan('${h.id}')" title="Delete">✗</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (e) { console.error('Failed to load history:', e); }
+        }
+
+        async function deleteScan(scanId) {
+            if (!confirm('Delete this scan?')) return;
+            await fetch(`/api/scans/${scanId}`, { method: 'DELETE' });
+            loadHistory();
+        }
+
+        async function purgeScans() {
+            const days = document.getElementById('purgeDays').value;
+            if (!confirm(`Delete all scans older than ${days} days?`)) return;
+            const res = await fetch('/api/scans/purge', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ days: parseInt(days) }),
+            });
+            const data = await res.json();
+            alert(`Purged ${data.purged} old scan(s).`);
+            loadHistory();
+        }
+
+        // ──── Subdomains ────
+        async function loadTargetsForSelect() {
+            try {
+                const res = await fetch('/api/targets');
+                const targets = await res.json();
+                const select = document.getElementById('subTargetSelect');
+                const current = select.value;
+                select.innerHTML = '<option value="">Select target...</option>';
+                targets.forEach(t => {
+                    select.innerHTML += `<option value="${t.domain}" ${t.domain === current ? 'selected' : ''}>${t.domain}</option>`;
+                });
+            } catch (e) { console.error(e); }
+        }
+
+        async function loadSubdomains() {
+            const target = document.getElementById('subTargetSelect').value;
+            const search = document.getElementById('subSearch').value;
+            const list = document.getElementById('subdomainsList');
+
+            if (!target) {
+                list.innerHTML = '<div class="empty-state">Select a target to view subdomains.</div>';
+                document.getElementById('subdomainsInfo').textContent = '';
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/subdomains/${target}?search=${encodeURIComponent(search)}`);
+                const data = await res.json();
+                selectedSubIds.clear();
+                updateBulkBtn();
+
+                if (!data.subdomains.length) {
+                    list.innerHTML = '<div class="empty-state">No subdomains found. Run a scan first.</div>';
+                    document.getElementById('subdomainsInfo').textContent = `Total: ${data.total}`;
+                    return;
+                }
+
+                let html = `<table class="sub-table">
+                    <tr><th><input type="checkbox" onchange="toggleAllSubs(this)"></th><th>Subdomain</th><th>Status</th><th>HTTP</th><th>Title</th><th>First Seen</th></tr>`;
+                data.subdomains.forEach(s => {
+                    const statusClass = s.status === 'live' ? 'status-live' : 'status-dead';
+                    html += `<tr>
+                        <td><input type="checkbox" value="${s.id}" onchange="toggleSub(${s.id})"></td>
+                        <td>${s.subdomain}</td>
+                        <td><span class="${statusClass}">${s.status || '?'}</span></td>
+                        <td>${s.http_status || '-'}</td>
+                        <td>${(s.title || '-').substring(0, 40)}</td>
+                        <td style="color:#64748b;font-size:0.7rem;">${s.first_seen ? new Date(s.first_seen).toLocaleDateString() : '-'}</td>
+                    </tr>`;
+                });
+                html += '</table>';
+                list.innerHTML = html;
+                document.getElementById('subdomainsInfo').textContent = `Showing ${data.subdomains.length} of ${data.total}`;
+            } catch (e) { console.error(e); }
+        }
+
+        function toggleSub(id) {
+            if (selectedSubIds.has(id)) selectedSubIds.delete(id);
+            else selectedSubIds.add(id);
+            updateBulkBtn();
+        }
+
+        function toggleAllSubs(el) {
+            document.querySelectorAll('.sub-table input[type="checkbox"][value]').forEach(cb => {
+                cb.checked = el.checked;
+                const id = parseInt(cb.value);
+                if (el.checked) selectedSubIds.add(id);
+                else selectedSubIds.delete(id);
+            });
+            updateBulkBtn();
+        }
+
+        function updateBulkBtn() {
+            const btn = document.getElementById('bulkDeleteBtn');
+            btn.style.display = selectedSubIds.size > 0 ? 'inline-block' : 'none';
+            btn.textContent = `🗑 Delete (${selectedSubIds.size})`;
+        }
+
+        async function bulkDeleteSubdomains() {
+            if (!confirm(`Delete ${selectedSubIds.size} subdomain(s)?`)) return;
+            await fetch('/api/subdomains', {
+                method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: [...selectedSubIds] }),
+            });
+            loadSubdomains();
+        }
+    </script>
+</body>
+</html>
