@@ -3,274 +3,693 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FastRecon ⚡ — Automated Security Scanner</title>
-    <meta name="description" content="FastRecon automated reconnaissance and vulnerability scanning framework. Enter a domain and get a complete security assessment.">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <title>FastRecon — Security Scanner</title>
+    <meta name="description" content="FastRecon automated reconnaissance and vulnerability scanning framework.">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', sans-serif; background: #0a0e17; color: #e2e8f0; min-height: 100vh; overflow-x: hidden; }
-
-        /* Background grid */
-        .grid-bg { position: fixed; inset: 0; background-image: radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px); background-size: 32px 32px; pointer-events: none; z-index: 0; }
-
-        /* Scan line animation */
-        .scan-line { position: fixed; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, #06d6a0, transparent); animation: scan-anim 3s ease-in-out infinite; pointer-events: none; z-index: 50; opacity: 0; transition: opacity 0.5s; }
-        .scan-line.active { opacity: 1; }
-        @keyframes scan-anim { 0% { transform: translateY(-100%); } 100% { transform: translateY(100vh); } }
-
-        /* Container */
-        .container { max-width: 960px; margin: 0 auto; padding: 32px 20px; position: relative; z-index: 1; }
-
-        /* Header */
-        .header { text-align: center; margin-bottom: 32px; }
-        .logo { font-size: 2.8rem; font-weight: 900; background: linear-gradient(135deg, #06d6a0 0%, #118ab2 50%, #9b5de5 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: -1px; }
-        .tagline { color: #64748b; font-size: 0.95rem; margin-top: 6px; }
-        .version { color: #475569; font-size: 0.75rem; margin-top: 4px; }
-
-        /* Glass card */
-        .glass { background: rgba(17, 24, 39, 0.7); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; }
-
-        /* Tabs */
-        .tabs { display: flex; gap: 2px; margin-bottom: 20px; background: rgba(17,24,39,0.5); border-radius: 12px; padding: 4px; border: 1px solid rgba(255,255,255,0.06); }
-        .tab { flex: 1; padding: 10px 16px; text-align: center; cursor: pointer; border-radius: 10px; font-size: 0.85rem; font-weight: 600; color: #64748b; transition: all 0.3s; }
-        .tab:hover { color: #94a3b8; }
-        .tab.active { background: linear-gradient(135deg, rgba(6,214,160,0.15), rgba(17,138,178,0.15)); color: #06d6a0; }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-
-        /* Scan form */
-        .scan-card { padding: 28px; margin-bottom: 20px; }
-        .input-group { display: flex; gap: 10px; margin-bottom: 16px; }
-        .domain-input { flex: 1; background: rgba(10, 14, 23, 0.8); border: 2px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 14px 18px; font-size: 1rem; color: #e2e8f0; font-family: 'Inter', sans-serif; outline: none; transition: border-color 0.3s; }
-        .domain-input:focus { border-color: #06d6a0; }
-        .domain-input::placeholder { color: #475569; }
-        .scan-btn { background: linear-gradient(135deg, #06d6a0, #118ab2); border: none; border-radius: 10px; padding: 14px 28px; font-size: 1rem; font-weight: 700; color: white; cursor: pointer; transition: all 0.3s; font-family: 'Inter', sans-serif; white-space: nowrap; }
-        .scan-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(6, 214, 160, 0.3); }
-        .scan-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
-
-        /* Options */
-        .options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-        .option-group { display: flex; flex-direction: column; gap: 4px; }
-        .option-label { font-size: 0.7rem; color: #64748b; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
-        select { background: rgba(10, 14, 23, 0.8); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 10px 14px; color: #e2e8f0; font-family: 'Inter', sans-serif; font-size: 0.85rem; outline: none; cursor: pointer; }
-        select:focus { border-color: #06d6a0; }
-        .toggles { display: flex; flex-wrap: wrap; gap: 10px; }
-        .toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.8rem; color: #94a3b8; }
-        .toggle input[type="checkbox"] { accent-color: #06d6a0; width: 15px; height: 15px; }
-
-        /* Progress */
-        .progress-card { padding: 20px; margin-bottom: 20px; display: none; }
-        .progress-card.active { display: block; }
-        .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-        .progress-title { font-size: 1rem; font-weight: 600; }
-        .progress-phase { color: #06d6a0; font-size: 0.85rem; }
-        .progress-bar-outer { width: 100%; height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; margin-bottom: 10px; }
-        .progress-bar-inner { height: 100%; background: linear-gradient(90deg, #06d6a0, #118ab2); border-radius: 3px; transition: width 0.5s ease; width: 0%; }
-        .progress-log { max-height: 180px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 0.75rem; color: #64748b; background: rgba(0,0,0,0.3); border-radius: 8px; padding: 10px; }
-        .progress-log .log-entry { padding: 2px 0; }
-        .progress-log .log-entry.phase { color: #06d6a0; font-weight: 600; }
-        .progress-log .log-entry.error { color: #ef476f; }
-        .progress-log .log-entry.complete { color: #06d6a0; }
-
-        /* Results preview */
-        .results-preview { padding: 20px; margin-bottom: 20px; display: none; }
-        .results-preview.active { display: block; }
-        .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-        .risk-badge { display: inline-block; padding: 6px 16px; border-radius: 20px; font-weight: 700; font-size: 0.85rem; color: white; }
-        .result-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; margin-bottom: 16px; }
-        .mini-stat { text-align: center; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px; }
-        .mini-stat .value { font-size: 1.4rem; font-weight: 800; }
-        .mini-stat .label { font-size: 0.6rem; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
-        .result-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-        .btn { padding: 9px 16px; border-radius: 8px; font-weight: 600; font-size: 0.8rem; cursor: pointer; border: none; font-family: 'Inter', sans-serif; transition: all 0.2s; text-decoration: none; display: inline-block; }
-        .btn-primary { background: linear-gradient(135deg, #06d6a0, #118ab2); color: white; }
-        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(6,214,160,0.3); }
-        .btn-secondary { background: rgba(255,255,255,0.06); color: #e2e8f0; border: 1px solid rgba(255,255,255,0.1); }
-        .btn-secondary:hover { background: rgba(255,255,255,0.1); }
-        .btn-danger { background: rgba(239,71,111,0.15); color: #ef476f; border: 1px solid rgba(239,71,111,0.3); }
-        .btn-danger:hover { background: rgba(239,71,111,0.25); }
-        .btn-sm { padding: 6px 12px; font-size: 0.7rem; }
-
-        /* Section card */
-        .section-card { padding: 20px; margin-bottom: 16px; }
-        .section-title { font-size: 0.95rem; font-weight: 600; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
-
-        /* Targets list */
-        .target-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); border-radius: 6px; transition: background 0.2s; }
-        .target-item:hover { background: rgba(255,255,255,0.03); }
-        .target-domain { font-weight: 500; font-size: 0.9rem; }
-        .target-meta { font-size: 0.7rem; color: #64748b; }
-        .target-actions { display: flex; gap: 6px; }
-
-        /* History */
-        .history-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); cursor: pointer; border-radius: 6px; transition: background 0.2s; }
-        .history-item:hover { background: rgba(255,255,255,0.03); }
-        .history-target { font-weight: 500; font-size: 0.9rem; }
-        .history-meta { font-size: 0.7rem; color: #64748b; }
-        .history-risk { font-weight: 600; font-size: 0.8rem; }
-        .history-actions { display: flex; gap: 6px; align-items: center; }
-
-        /* Subdomains table */
-        .search-bar { display: flex; gap: 8px; margin-bottom: 12px; }
-        .search-input { flex: 1; background: rgba(10,14,23,0.8); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 8px 14px; color: #e2e8f0; font-family: 'Inter', sans-serif; font-size: 0.85rem; outline: none; }
-        .search-input:focus { border-color: #06d6a0; }
-        .sub-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-        .sub-table th { background: rgba(6,214,160,0.1); color: #06d6a0; padding: 8px; text-align: left; font-weight: 600; font-size: 0.7rem; text-transform: uppercase; }
-        .sub-table td { padding: 7px 8px; border-bottom: 1px solid rgba(255,255,255,0.04); }
-        .sub-table tr:hover { background: rgba(255,255,255,0.02); }
-        .sub-table input[type="checkbox"] { accent-color: #06d6a0; }
-        .status-live { color: #06d6a0; font-weight: 600; }
-        .status-dead { color: #ef476f; }
-        .status-new { background: rgba(6,214,160,0.15); color: #06d6a0; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600; }
-
-        /* Purge section */
-        .purge-section { display: flex; gap: 10px; align-items: center; padding: 12px; background: rgba(239,71,111,0.05); border: 1px solid rgba(239,71,111,0.15); border-radius: 8px; margin-top: 12px; }
-        .purge-section input { width: 60px; background: rgba(10,14,23,0.8); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 6px 10px; color: #e2e8f0; font-size: 0.85rem; text-align: center; }
-        .purge-section label { font-size: 0.8rem; color: #94a3b8; }
-
-        .empty-state { color: #475569; font-size: 0.85rem; text-align: center; padding: 24px; }
-
-        /* Responsive */
-        @media (max-width: 640px) {
-            .input-group { flex-direction: column; }
-            .options { grid-template-columns: 1fr; }
-            .logo { font-size: 2.2rem; }
-            .tabs { flex-wrap: wrap; }
+        /* ── Reset & Base ── */
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #111318;
+            color: #c9cdd4;
+            min-height: 100vh;
+            font-size: 14px;
+            line-height: 1.5;
         }
 
-        /* Scrollbar */
-        ::-webkit-scrollbar { width: 5px; }
+        /* ── Layout ── */
+        .app { display: flex; flex-direction: column; min-height: 100vh; }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            height: 48px;
+            background: #17191f;
+            border-bottom: 1px solid #232630;
+            flex-shrink: 0;
+        }
+        .topbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            font-size: 15px;
+            color: #e4e7ec;
+            letter-spacing: -0.3px;
+        }
+        .topbar-brand .bolt {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            background: #3b82f6;
+            border-radius: 6px;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 700;
+        }
+        .topbar-version {
+            font-size: 11px;
+            color: #555b67;
+            font-weight: 400;
+        }
+
+        .main-area {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* ── Sidebar ── */
+        .sidebar {
+            width: 200px;
+            background: #14161b;
+            border-right: 1px solid #232630;
+            padding: 12px 0;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 20px;
+            font-size: 13px;
+            font-weight: 500;
+            color: #7a8290;
+            cursor: pointer;
+            transition: color 0.15s, background 0.15s;
+            border-left: 2px solid transparent;
+            user-select: none;
+        }
+        .nav-item:hover {
+            color: #c9cdd4;
+            background: rgba(255,255,255,0.03);
+        }
+        .nav-item.active {
+            color: #e4e7ec;
+            background: rgba(59,130,246,0.08);
+            border-left-color: #3b82f6;
+        }
+        .nav-item svg {
+            width: 16px;
+            height: 16px;
+            flex-shrink: 0;
+            opacity: 0.6;
+        }
+        .nav-item.active svg { opacity: 1; }
+        .sidebar-spacer { flex: 1; }
+
+        /* ── Content ── */
+        .content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 28px 32px;
+        }
+
+        /* ── Section Headers ── */
+        .page-header {
+            margin-bottom: 24px;
+        }
+        .page-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #e4e7ec;
+            margin-bottom: 4px;
+        }
+        .page-subtitle {
+            font-size: 13px;
+            color: #555b67;
+        }
+
+        /* ── Cards ── */
+        .card {
+            background: #17191f;
+            border: 1px solid #232630;
+            border-radius: 10px;
+            margin-bottom: 16px;
+        }
+        .card-body { padding: 20px; }
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 20px;
+            border-bottom: 1px solid #232630;
+        }
+        .card-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #c9cdd4;
+        }
+
+        /* ── Scan Form ── */
+        .scan-form { display: flex; gap: 10px; margin-bottom: 16px; }
+        .input-field {
+            flex: 1;
+            background: #111318;
+            border: 1px solid #2a2d36;
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 14px;
+            color: #e4e7ec;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .input-field:focus { border-color: #3b82f6; }
+        .input-field::placeholder { color: #464c58; }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 9px 18px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            border: none;
+            transition: background 0.15s, box-shadow 0.15s, opacity 0.15s;
+            white-space: nowrap;
+            text-decoration: none;
+            color: inherit;
+        }
+        .btn-primary {
+            background: #3b82f6;
+            color: #fff;
+        }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+        .btn-ghost {
+            background: transparent;
+            color: #7a8290;
+            border: 1px solid #2a2d36;
+        }
+        .btn-ghost:hover { background: rgba(255,255,255,0.04); color: #c9cdd4; }
+
+        .btn-danger {
+            background: transparent;
+            color: #ef4444;
+            border: 1px solid rgba(239,68,68,0.2);
+        }
+        .btn-danger:hover { background: rgba(239,68,68,0.08); }
+
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+        /* ── Scan Options ── */
+        .options-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .option-group label {
+            display: block;
+            font-size: 11px;
+            font-weight: 600;
+            color: #555b67;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+        select.input-field {
+            width: 100%;
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23555b67'%3E%3Cpath d='M6 8.825L1.175 4 2.238 2.938 6 6.7 9.763 2.937 10.825 4z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 32px;
+        }
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding-top: 4px;
+        }
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: #7a8290;
+            cursor: pointer;
+            user-select: none;
+        }
+        .checkbox-label input[type="checkbox"] {
+            width: 14px;
+            height: 14px;
+            accent-color: #3b82f6;
+            cursor: pointer;
+        }
+
+        /* ── Progress ── */
+        .progress-card { display: none; }
+        .progress-card.active { display: block; }
+        .progress-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .progress-title { font-size: 14px; font-weight: 600; color: #e4e7ec; }
+        .progress-phase { font-size: 12px; color: #3b82f6; font-weight: 500; }
+        .progress-track {
+            width: 100%;
+            height: 4px;
+            background: #232630;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+        .progress-fill {
+            height: 100%;
+            background: #3b82f6;
+            border-radius: 2px;
+            transition: width 0.4s ease;
+            width: 0%;
+        }
+        .log-box {
+            max-height: 160px;
+            overflow-y: auto;
+            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+            font-size: 12px;
+            color: #555b67;
+            background: #111318;
+            border: 1px solid #232630;
+            border-radius: 6px;
+            padding: 10px 12px;
+        }
+        .log-entry { padding: 1px 0; }
+        .log-entry.phase { color: #3b82f6; }
+        .log-entry.error { color: #ef4444; }
+        .log-entry.complete { color: #22c55e; }
+
+        /* ── Scan Line (top bar animation) ── */
+        .scan-bar {
+            position: fixed; top: 0; left: 0; right: 0;
+            height: 2px; z-index: 100;
+            background: linear-gradient(90deg, transparent 0%, #3b82f6 50%, transparent 100%);
+            opacity: 0;
+            animation: none;
+            pointer-events: none;
+        }
+        .scan-bar.active {
+            opacity: 1;
+            animation: scan-slide 1.8s ease-in-out infinite;
+        }
+        @keyframes scan-slide {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        /* ── Results ── */
+        .results-card { display: none; }
+        .results-card.active { display: block; }
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+        .result-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #22c55e;
+        }
+        .result-target { font-size: 12px; color: #555b67; margin-top: 2px; }
+        .risk-badge {
+            display: inline-block;
+            padding: 5px 14px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: 0.3px;
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .stat-cell {
+            text-align: center;
+            padding: 10px 6px;
+            background: #111318;
+            border: 1px solid #232630;
+            border-radius: 8px;
+        }
+        .stat-value {
+            font-size: 20px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        .stat-label {
+            font-size: 10px;
+            font-weight: 600;
+            color: #555b67;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 2px;
+        }
+
+        .action-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        /* ── List Items (targets, history) ── */
+        .list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #1e2028;
+        }
+        .list-item:last-child { border-bottom: none; }
+        .list-primary { font-size: 14px; font-weight: 500; color: #e4e7ec; }
+        .list-secondary { font-size: 12px; color: #555b67; margin-top: 1px; }
+        .list-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+
+        .risk-text { font-size: 12px; font-weight: 600; }
+
+        /* ── Purge ── */
+        .purge-bar {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            padding: 12px 16px;
+            background: rgba(239,68,68,0.04);
+            border: 1px solid rgba(239,68,68,0.12);
+            border-radius: 8px;
+            margin-top: 16px;
+        }
+        .purge-bar span { font-size: 13px; color: #7a8290; }
+        .purge-bar input[type="number"] {
+            width: 56px;
+            background: #111318;
+            border: 1px solid #2a2d36;
+            border-radius: 6px;
+            padding: 5px 8px;
+            color: #e4e7ec;
+            font-size: 13px;
+            text-align: center;
+            font-family: inherit;
+        }
+
+        /* ── Table ── */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .data-table th {
+            text-align: left;
+            padding: 8px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #555b67;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            border-bottom: 1px solid #232630;
+            background: rgba(0,0,0,0.15);
+        }
+        .data-table td {
+            padding: 7px 10px;
+            border-bottom: 1px solid #1e2028;
+            color: #c9cdd4;
+        }
+        .data-table tr:hover td { background: rgba(255,255,255,0.02); }
+        .data-table input[type="checkbox"] { accent-color: #3b82f6; }
+        .status-live { color: #22c55e; font-weight: 600; }
+        .status-dead { color: #ef4444; font-weight: 500; }
+
+        .search-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .search-row select.input-field { flex: 0 0 200px; }
+
+        /* ── Empty State ── */
+        .empty {
+            text-align: center;
+            padding: 32px 16px;
+            color: #464c58;
+            font-size: 13px;
+        }
+
+        .sub-info {
+            text-align: right;
+            font-size: 11px;
+            color: #464c58;
+            margin-top: 8px;
+        }
+
+        /* ── Tab Content Visibility ── */
+        .tab-pane { display: none; }
+        .tab-pane.active { display: block; }
+
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb { background: #2a2d36; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3a3e49; }
+
+        /* ── Responsive ── */
+        @media (max-width: 768px) {
+            .sidebar { display: none; }
+            .topbar { padding: 0 16px; }
+            .content { padding: 20px 16px; }
+            .scan-form { flex-direction: column; }
+            .options-grid { grid-template-columns: 1fr; }
+            .mobile-nav {
+                display: flex !important;
+                gap: 0;
+                background: #14161b;
+                border-bottom: 1px solid #232630;
+                overflow-x: auto;
+            }
+            .mobile-nav-item {
+                flex: 1;
+                text-align: center;
+                padding: 10px 8px;
+                font-size: 12px;
+                font-weight: 600;
+                color: #555b67;
+                cursor: pointer;
+                border-bottom: 2px solid transparent;
+                white-space: nowrap;
+            }
+            .mobile-nav-item.active {
+                color: #3b82f6;
+                border-bottom-color: #3b82f6;
+            }
+        }
+        @media (min-width: 769px) {
+            .mobile-nav { display: none !important; }
+        }
     </style>
 </head>
 <body>
-    <div class="grid-bg"></div>
-    <div class="scan-line" id="scanLine"></div>
+    <div class="scan-bar" id="scanBar"></div>
 
-    <div class="container">
-        <!-- Header -->
-        <div class="header">
-            <div class="logo">⚡ FastRecon</div>
-            <div class="tagline">Automated Security Reconnaissance & Vulnerability Scanner</div>
-            <div class="version">v{{ version }} — Enter a domain and discover security flaws</div>
+    <div class="app">
+        <!-- Top Bar -->
+        <div class="topbar">
+            <div class="topbar-brand">
+                <span class="bolt">⚡</span>
+                FastRecon
+                <span class="topbar-version">v{{ version }}</span>
+            </div>
         </div>
 
-        <!-- Tabs -->
-        <div class="tabs">
-            <div class="tab active" onclick="switchTab('scan')">🚀 Scan</div>
-            <div class="tab" onclick="switchTab('targets')">🎯 Targets</div>
-            <div class="tab" onclick="switchTab('history')">📋 History</div>
-            <div class="tab" onclick="switchTab('subdomains')">🌐 Subdomains</div>
+        <!-- Mobile Nav -->
+        <div class="mobile-nav" id="mobileNav">
+            <div class="mobile-nav-item active" onclick="switchTab('scan')">Scan</div>
+            <div class="mobile-nav-item" onclick="switchTab('targets')">Targets</div>
+            <div class="mobile-nav-item" onclick="switchTab('history')">History</div>
+            <div class="mobile-nav-item" onclick="switchTab('subdomains')">Subdomains</div>
         </div>
 
-        <!-- Tab: Scan -->
-        <div class="tab-content active" id="tab-scan">
-            <div class="glass scan-card">
-                <div class="input-group">
-                    <input type="text" class="domain-input" id="targetInput" placeholder="Enter target domain (e.g., example.com)" autocomplete="off">
-                    <button class="scan-btn" id="scanBtn" onclick="startScan()">🚀 Scan</button>
+        <div class="main-area">
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <div class="nav-item active" data-tab="scan" onclick="switchTab('scan')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                    Scan
                 </div>
-                <div class="options">
-                    <div class="option-group">
-                        <div class="option-label">Scan Mode</div>
-                        <select id="scanMode">
-                            <option value="light">⚡ Light — Quick passive recon</option>
-                            <option value="normal" selected>🔍 Normal — Balanced scan</option>
-                            <option value="aggressive">💥 Aggressive — Deep scan</option>
-                        </select>
+                <div class="nav-item" data-tab="targets" onclick="switchTab('targets')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                    Targets
+                </div>
+                <div class="nav-item" data-tab="history" onclick="switchTab('history')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    History
+                </div>
+                <div class="nav-item" data-tab="subdomains" onclick="switchTab('subdomains')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+                    Subdomains
+                </div>
+                <div class="sidebar-spacer"></div>
+            </div>
+
+            <!-- Content Area -->
+            <div class="content">
+
+                <!-- ═══ TAB: SCAN ═══ -->
+                <div class="tab-pane active" id="tab-scan">
+                    <div class="page-header">
+                        <div class="page-title">New Scan</div>
+                        <div class="page-subtitle">Enter a target domain to start reconnaissance</div>
                     </div>
-                    <div class="option-group">
-                        <div class="option-label">Skip Phases</div>
-                        <div class="toggles">
-                            <label class="toggle"><input type="checkbox" id="skipPorts"> Skip Ports</label>
-                            <label class="toggle"><input type="checkbox" id="skipVulns"> Skip Vulns</label>
-                            <label class="toggle"><input type="checkbox" id="skipCloud"> Skip Cloud</label>
-                            <label class="toggle"><input type="checkbox" id="skipEndpoints"> Skip Endpoints</label>
+
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="scan-form">
+                                <input type="text" class="input-field" id="targetInput" placeholder="example.com" autocomplete="off">
+                                <button class="btn btn-primary" id="scanBtn" onclick="startScan()">Start Scan</button>
+                            </div>
+                            <div class="options-grid">
+                                <div class="option-group">
+                                    <label>Scan Mode</label>
+                                    <select class="input-field" id="scanMode">
+                                        <option value="light">Light — Quick passive recon</option>
+                                        <option value="normal" selected>Normal — Balanced scan</option>
+                                        <option value="aggressive">Aggressive — Deep scan</option>
+                                    </select>
+                                </div>
+                                <div class="option-group">
+                                    <label>Skip Phases</label>
+                                    <div class="checkbox-group">
+                                        <label class="checkbox-label"><input type="checkbox" id="skipPorts"> Ports</label>
+                                        <label class="checkbox-label"><input type="checkbox" id="skipVulns"> Vulns</label>
+                                        <label class="checkbox-label"><input type="checkbox" id="skipCloud"> Cloud</label>
+                                        <label class="checkbox-label"><input type="checkbox" id="skipEndpoints"> Endpoints</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Progress -->
+                    <div class="card progress-card" id="progressCard">
+                        <div class="card-body">
+                            <div class="progress-top">
+                                <div class="progress-title">Scanning <span id="progressTarget"></span></div>
+                                <div class="progress-phase" id="progressPhase">Initializing…</div>
+                            </div>
+                            <div class="progress-track">
+                                <div class="progress-fill" id="progressBar"></div>
+                            </div>
+                            <div class="log-box" id="progressLog"></div>
+                        </div>
+                    </div>
+
+                    <!-- Results -->
+                    <div class="card results-card" id="resultsPreview">
+                        <div class="card-body">
+                            <div class="result-header">
+                                <div>
+                                    <div class="result-title">Scan Complete</div>
+                                    <div class="result-target" id="resultTarget"></div>
+                                </div>
+                                <div class="risk-badge" id="riskBadge"></div>
+                            </div>
+                            <div class="stat-grid" id="resultStats"></div>
+                            <div class="action-row">
+                                <a class="btn btn-primary btn-sm" id="viewReportBtn" href="#" target="_blank">View Report</a>
+                                <a class="btn btn-ghost btn-sm" id="downloadJsonBtn" href="#" target="_blank">JSON</a>
+                                <a class="btn btn-ghost btn-sm" id="downloadCsvBtn" href="#" target="_blank">CSV</a>
+                                <button class="btn btn-ghost btn-sm" onclick="startNewScan()">New Scan</button>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Progress -->
-            <div class="glass progress-card" id="progressCard">
-                <div class="progress-header">
-                    <div class="progress-title">🔍 Scanning <span id="progressTarget"></span></div>
-                    <div class="progress-phase" id="progressPhase">Initializing...</div>
-                </div>
-                <div class="progress-bar-outer">
-                    <div class="progress-bar-inner" id="progressBar"></div>
-                </div>
-                <div class="progress-log" id="progressLog"></div>
-            </div>
-
-            <!-- Results Preview -->
-            <div class="glass results-preview" id="resultsPreview">
-                <div class="result-header">
-                    <div>
-                        <h2 style="color: #06d6a0; font-size: 1.1rem;">✓ Scan Complete</h2>
-                        <div style="color: #64748b; font-size: 0.8rem;" id="resultTarget"></div>
+                <!-- ═══ TAB: TARGETS ═══ -->
+                <div class="tab-pane" id="tab-targets">
+                    <div class="page-header">
+                        <div class="page-title">Targets</div>
+                        <div class="page-subtitle">Manage your saved target domains</div>
                     </div>
-                    <div class="risk-badge" id="riskBadge"></div>
-                </div>
-                <div class="result-stats" id="resultStats"></div>
-                <div class="result-actions">
-                    <a class="btn btn-primary" id="viewReportBtn" href="#" target="_blank">📄 Report</a>
-                    <a class="btn btn-secondary" id="downloadJsonBtn" href="#" target="_blank">📥 JSON</a>
-                    <a class="btn btn-secondary" id="downloadCsvBtn" href="#" target="_blank">📊 CSV</a>
-                    <button class="btn btn-secondary" onclick="startNewScan()">🔄 New Scan</button>
-                </div>
-            </div>
-        </div>
 
-        <!-- Tab: Targets -->
-        <div class="tab-content" id="tab-targets">
-            <div class="glass section-card">
-                <div class="section-title">🎯 Saved Targets</div>
-                <div class="input-group" style="margin-bottom: 16px;">
-                    <input type="text" class="domain-input" id="newTargetInput" placeholder="Add a target domain..." style="font-size: 0.9rem; padding: 10px 14px;">
-                    <button class="btn btn-primary" onclick="addTarget()" style="padding: 10px 20px;">+ Add</button>
-                </div>
-                <div id="targetsList">
-                    <div class="empty-state">No saved targets. Add one above.</div>
-                </div>
-            </div>
-        </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="scan-form" style="margin-bottom:0;">
+                                <input type="text" class="input-field" id="newTargetInput" placeholder="Add a target domain…">
+                                <button class="btn btn-primary" onclick="addTarget()">Add</button>
+                            </div>
+                        </div>
+                    </div>
 
-        <!-- Tab: History -->
-        <div class="tab-content" id="tab-history">
-            <div class="glass section-card">
-                <div class="section-title">
-                    <span>📋 Scan History</span>
-                    <button class="btn btn-sm btn-secondary" onclick="loadHistory()">↻ Refresh</button>
+                    <div class="card">
+                        <div class="card-body" id="targetsList">
+                            <div class="empty">No saved targets yet.</div>
+                        </div>
+                    </div>
                 </div>
-                <div id="historyList">
-                    <div class="empty-state">No scans yet. Start a scan from the Scan tab.</div>
-                </div>
-                <div class="purge-section">
-                    <label>Purge scans older than</label>
-                    <input type="number" id="purgeDays" value="30" min="1">
-                    <label>days</label>
-                    <button class="btn btn-sm btn-danger" onclick="purgeScans()">🗑 Purge</button>
-                </div>
-            </div>
-        </div>
 
-        <!-- Tab: Subdomains -->
-        <div class="tab-content" id="tab-subdomains">
-            <div class="glass section-card">
-                <div class="section-title">🌐 Subdomain Database</div>
-                <div class="search-bar">
-                    <select id="subTargetSelect" style="min-width: 180px;" onchange="loadSubdomains()">
-                        <option value="">Select target...</option>
-                    </select>
-                    <input type="text" class="search-input" id="subSearch" placeholder="Search subdomains..." oninput="loadSubdomains()">
-                    <button class="btn btn-sm btn-danger" id="bulkDeleteBtn" onclick="bulkDeleteSubdomains()" style="display:none;">🗑 Delete Selected</button>
+                <!-- ═══ TAB: HISTORY ═══ -->
+                <div class="tab-pane" id="tab-history">
+                    <div class="page-header">
+                        <div class="page-title">Scan History</div>
+                        <div class="page-subtitle">Browse and manage past scan results</div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">All Scans</div>
+                            <button class="btn btn-ghost btn-sm" onclick="loadHistory()">Refresh</button>
+                        </div>
+                        <div class="card-body">
+                            <div id="historyList">
+                                <div class="empty">No scans yet. Run your first scan.</div>
+                            </div>
+                            <div class="purge-bar">
+                                <span>Purge scans older than</span>
+                                <input type="number" id="purgeDays" value="30" min="1">
+                                <span>days</span>
+                                <button class="btn btn-danger btn-sm" onclick="purgeScans()">Purge</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div id="subdomainsList">
-                    <div class="empty-state">Select a target to view subdomains.</div>
+
+                <!-- ═══ TAB: SUBDOMAINS ═══ -->
+                <div class="tab-pane" id="tab-subdomains">
+                    <div class="page-header">
+                        <div class="page-title">Subdomains</div>
+                        <div class="page-subtitle">Browse the discovered subdomain database</div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="search-row">
+                                <select class="input-field" id="subTargetSelect" onchange="loadSubdomains()">
+                                    <option value="">Select target…</option>
+                                </select>
+                                <input type="text" class="input-field" id="subSearch" placeholder="Filter subdomains…" oninput="loadSubdomains()">
+                                <button class="btn btn-danger btn-sm" id="bulkDeleteBtn" onclick="bulkDeleteSubdomains()" style="display:none;">Delete Selected</button>
+                            </div>
+                            <div id="subdomainsList">
+                                <div class="empty">Select a target to view subdomains.</div>
+                            </div>
+                            <div class="sub-info" id="subdomainsInfo"></div>
+                        </div>
+                    </div>
                 </div>
-                <div id="subdomainsInfo" style="text-align: right; color: #64748b; font-size: 0.7rem; margin-top: 8px;"></div>
+
             </div>
         </div>
     </div>
@@ -281,20 +700,27 @@
         let selectedSubIds = new Set();
 
         // ──── Tab Switching ────
-        function switchTab(tabName) {
-            document.querySelectorAll('.tab').forEach((t, i) => {
-                t.classList.toggle('active', t.textContent.toLowerCase().includes(tabName.substring(0,4)));
+        function switchTab(name) {
+            // Sidebar
+            document.querySelectorAll('.nav-item[data-tab]').forEach(n => {
+                n.classList.toggle('active', n.dataset.tab === name);
             });
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            document.getElementById('tab-' + tabName).classList.add('active');
+            // Mobile nav
+            document.querySelectorAll('.mobile-nav-item').forEach((m, i) => {
+                const tabs = ['scan','targets','history','subdomains'];
+                m.classList.toggle('active', tabs[i] === name);
+            });
+            // Content
+            document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+            document.getElementById('tab-' + name).classList.add('active');
 
-            if (tabName === 'targets') loadTargets();
-            if (tabName === 'history') loadHistory();
-            if (tabName === 'subdomains') { loadTargetsForSelect(); loadSubdomains(); }
+            if (name === 'targets') loadTargets();
+            if (name === 'history') loadHistory();
+            if (name === 'subdomains') { loadTargetsForSelect(); loadSubdomains(); }
         }
 
         // ──── Scan ────
-        window.addEventListener('load', () => { loadHistory(); });
+        window.addEventListener('load', () => loadHistory());
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('targetInput').addEventListener('keydown', e => {
                 if (e.key === 'Enter') startScan();
@@ -304,8 +730,9 @@
         async function startScan() {
             const target = document.getElementById('targetInput').value.trim();
             if (!target) {
-                document.getElementById('targetInput').style.borderColor = '#ef476f';
-                setTimeout(() => document.getElementById('targetInput').style.borderColor = '', 2000);
+                const el = document.getElementById('targetInput');
+                el.style.borderColor = '#ef4444';
+                setTimeout(() => el.style.borderColor = '', 1500);
                 return;
             }
 
@@ -316,7 +743,7 @@
             const skipEndpoints = document.getElementById('skipEndpoints').checked;
 
             document.getElementById('scanBtn').disabled = true;
-            document.getElementById('scanBtn').textContent = '⏳ Scanning...';
+            document.getElementById('scanBtn').textContent = 'Scanning…';
             document.getElementById('targetInput').disabled = true;
 
             document.getElementById('progressCard').classList.add('active');
@@ -324,7 +751,7 @@
             document.getElementById('progressTarget').textContent = target;
             document.getElementById('progressLog').innerHTML = '';
             document.getElementById('progressBar').style.width = '0%';
-            document.getElementById('scanLine').classList.add('active');
+            document.getElementById('scanBar').classList.add('active');
 
             try {
                 const response = await fetch('/api/scan', {
@@ -360,17 +787,17 @@
                 }
                 if (data.status === 'complete') {
                     eventSource.close();
-                    addLog('✓ Scan complete!', 'complete');
+                    addLog('Scan complete', 'complete');
                     document.getElementById('progressBar').style.width = '100%';
-                    document.getElementById('scanLine').classList.remove('active');
+                    document.getElementById('scanBar').classList.remove('active');
                     showResults(data);
                     resetControls();
                     loadHistory();
                 }
                 if (data.status === 'error') {
                     eventSource.close();
-                    addLog('✗ Error: ' + (data.error || 'Unknown error'), 'error');
-                    document.getElementById('scanLine').classList.remove('active');
+                    addLog('Error: ' + (data.error || 'Unknown error'), 'error');
+                    document.getElementById('scanBar').classList.remove('active');
                     resetControls();
                 }
             };
@@ -393,26 +820,27 @@
         async function showResults(data) {
             document.getElementById('resultsPreview').classList.add('active');
             document.getElementById('resultTarget').textContent = data.target;
-            const riskColors = { CRITICAL: '#ef476f', HIGH: '#f77f00', MEDIUM: '#ffd166', LOW: '#06d6a0', CLEAN: '#06d6a0' };
+
+            const riskColors = { CRITICAL: '#ef4444', HIGH: '#f97316', MEDIUM: '#eab308', LOW: '#22c55e', CLEAN: '#22c55e' };
             const badge = document.getElementById('riskBadge');
             const level = data.riskLevel || 'N/A';
             const score = data.riskScore || 0;
-            badge.textContent = `${level} (${score}/100)`;
-            badge.style.background = riskColors[level] || '#6c757d';
+            badge.textContent = `${level}  ${score}/100`;
+            badge.style.background = riskColors[level] || '#555b67';
 
             try {
                 const res = await fetch(`/api/results/${currentScanId}`);
                 const result = await res.json();
-                const stats = result.stats || {};
+                const s = result.stats || {};
                 document.getElementById('resultStats').innerHTML = `
-                    <div class="mini-stat"><div class="value" style="color:#118ab2">${stats.subdomainsDiscovered || 0}</div><div class="label">Subdomains</div></div>
-                    <div class="mini-stat"><div class="value" style="color:#06d6a0">${stats.liveHosts || 0}</div><div class="label">Live Hosts</div></div>
-                    <div class="mini-stat"><div class="value" style="color:#9b5de5">${stats.openPorts || 0}</div><div class="label">Open Ports</div></div>
-                    <div class="mini-stat"><div class="value" style="color:#ef476f">${stats.criticalAlerts || 0}</div><div class="label">Critical</div></div>
-                    <div class="mini-stat"><div class="value" style="color:#f77f00">${stats.highAlerts || 0}</div><div class="label">High</div></div>
-                    <div class="mini-stat"><div class="value" style="color:#ffd166">${stats.mediumAlerts || 0}</div><div class="label">Medium</div></div>
-                    <div class="mini-stat"><div class="value" style="color:#06d6a0">${stats.lowAlerts || 0}</div><div class="label">Low</div></div>
-                    <div class="mini-stat"><div class="value" style="color:#e2e8f0">${stats.totalAlerts || 0}</div><div class="label">Total</div></div>
+                    <div class="stat-cell"><div class="stat-value" style="color:#3b82f6">${s.subdomainsDiscovered || 0}</div><div class="stat-label">Subdomains</div></div>
+                    <div class="stat-cell"><div class="stat-value" style="color:#22c55e">${s.liveHosts || 0}</div><div class="stat-label">Live</div></div>
+                    <div class="stat-cell"><div class="stat-value" style="color:#a78bfa">${s.openPorts || 0}</div><div class="stat-label">Ports</div></div>
+                    <div class="stat-cell"><div class="stat-value" style="color:#ef4444">${s.criticalAlerts || 0}</div><div class="stat-label">Critical</div></div>
+                    <div class="stat-cell"><div class="stat-value" style="color:#f97316">${s.highAlerts || 0}</div><div class="stat-label">High</div></div>
+                    <div class="stat-cell"><div class="stat-value" style="color:#eab308">${s.mediumAlerts || 0}</div><div class="stat-label">Medium</div></div>
+                    <div class="stat-cell"><div class="stat-value" style="color:#22c55e">${s.lowAlerts || 0}</div><div class="stat-label">Low</div></div>
+                    <div class="stat-cell"><div class="stat-value">${s.totalAlerts || 0}</div><div class="stat-label">Total</div></div>
                 `;
             } catch (e) { console.error('Failed to load results:', e); }
 
@@ -423,7 +851,7 @@
 
         function resetControls() {
             document.getElementById('scanBtn').disabled = false;
-            document.getElementById('scanBtn').textContent = '🚀 Scan';
+            document.getElementById('scanBtn').textContent = 'Start Scan';
             document.getElementById('targetInput').disabled = false;
         }
 
@@ -441,18 +869,18 @@
                 const targets = await res.json();
                 const list = document.getElementById('targetsList');
                 if (!targets.length) {
-                    list.innerHTML = '<div class="empty-state">No saved targets. Add one above.</div>';
+                    list.innerHTML = '<div class="empty">No saved targets yet.</div>';
                     return;
                 }
                 list.innerHTML = targets.map(t => `
-                    <div class="target-item">
+                    <div class="list-item">
                         <div>
-                            <div class="target-domain">${t.domain}</div>
-                            <div class="target-meta">${t.last_scanned ? 'Last scan: ' + new Date(t.last_scanned).toLocaleString() : 'Never scanned'} ${t.notes ? '· ' + t.notes : ''}</div>
+                            <div class="list-primary">${t.domain}</div>
+                            <div class="list-secondary">${t.last_scanned ? 'Last scan: ' + new Date(t.last_scanned).toLocaleString() : 'Never scanned'}${t.notes ? ' · ' + t.notes : ''}</div>
                         </div>
-                        <div class="target-actions">
-                            <button class="btn btn-sm btn-primary" onclick="scanTarget('${t.domain}')">🚀 Scan</button>
-                            <button class="btn btn-sm btn-danger" onclick="deleteTarget(${t.id})">✗</button>
+                        <div class="list-actions">
+                            <button class="btn btn-primary btn-sm" onclick="scanTarget('${t.domain}')">Scan</button>
+                            <button class="btn btn-danger btn-sm" onclick="deleteTarget(${t.id})">Delete</button>
                         </div>
                     </div>
                 `).join('');
@@ -489,21 +917,21 @@
                 const history = await res.json();
                 const list = document.getElementById('historyList');
                 if (!history.length) {
-                    list.innerHTML = '<div class="empty-state">No scans yet. Start a scan from the Scan tab.</div>';
+                    list.innerHTML = '<div class="empty">No scans yet. Run your first scan.</div>';
                     return;
                 }
-                const riskColors = { CRITICAL: '#ef476f', HIGH: '#f77f00', MEDIUM: '#ffd166', LOW: '#06d6a0', CLEAN: '#06d6a0' };
+                const riskColors = { CRITICAL: '#ef4444', HIGH: '#f97316', MEDIUM: '#eab308', LOW: '#22c55e', CLEAN: '#22c55e' };
                 list.innerHTML = history.map(h => `
-                    <div class="history-item">
+                    <div class="list-item">
                         <div onclick="window.open('/api/report/${h.id}', '_blank')" style="cursor:pointer; flex:1;">
-                            <div class="history-target">${h.target}</div>
-                            <div class="history-meta">${h.mode} mode · ${h.totalAlerts} alerts · ${h.newSubdomains || 0} new subs · ${h.duration || ''} · ${new Date(h.timestamp).toLocaleString()}</div>
+                            <div class="list-primary">${h.target}</div>
+                            <div class="list-secondary">${h.mode} · ${h.totalAlerts} alerts · ${h.newSubdomains || 0} new subs · ${h.duration || ''} · ${new Date(h.timestamp).toLocaleString()}</div>
                         </div>
-                        <div class="history-actions">
-                            <span class="history-risk" style="color: ${riskColors[h.riskLevel] || '#6c757d'}">${h.riskLevel} (${h.riskScore})</span>
-                            <a class="btn btn-sm btn-secondary" href="/api/export/${h.id}/csv" title="CSV">📊</a>
-                            <a class="btn btn-sm btn-secondary" href="/api/export/${h.id}/json" title="JSON">📥</a>
-                            <button class="btn btn-sm btn-danger" onclick="deleteScan('${h.id}')" title="Delete">✗</button>
+                        <div class="list-actions">
+                            <span class="risk-text" style="color: ${riskColors[h.riskLevel] || '#555b67'}">${h.riskLevel} (${h.riskScore})</span>
+                            <a class="btn btn-ghost btn-sm" href="/api/export/${h.id}/csv" title="CSV">CSV</a>
+                            <a class="btn btn-ghost btn-sm" href="/api/export/${h.id}/json" title="JSON">JSON</a>
+                            <button class="btn btn-danger btn-sm" onclick="deleteScan('${h.id}')" title="Delete">Delete</button>
                         </div>
                     </div>
                 `).join('');
@@ -535,7 +963,7 @@
                 const targets = await res.json();
                 const select = document.getElementById('subTargetSelect');
                 const current = select.value;
-                select.innerHTML = '<option value="">Select target...</option>';
+                select.innerHTML = '<option value="">Select target…</option>';
                 targets.forEach(t => {
                     select.innerHTML += `<option value="${t.domain}" ${t.domain === current ? 'selected' : ''}>${t.domain}</option>`;
                 });
@@ -548,7 +976,7 @@
             const list = document.getElementById('subdomainsList');
 
             if (!target) {
-                list.innerHTML = '<div class="empty-state">Select a target to view subdomains.</div>';
+                list.innerHTML = '<div class="empty">Select a target to view subdomains.</div>';
                 document.getElementById('subdomainsInfo').textContent = '';
                 return;
             }
@@ -560,22 +988,22 @@
                 updateBulkBtn();
 
                 if (!data.subdomains.length) {
-                    list.innerHTML = '<div class="empty-state">No subdomains found. Run a scan first.</div>';
+                    list.innerHTML = '<div class="empty">No subdomains found. Run a scan first.</div>';
                     document.getElementById('subdomainsInfo').textContent = `Total: ${data.total}`;
                     return;
                 }
 
-                let html = `<table class="sub-table">
+                let html = `<table class="data-table">
                     <tr><th><input type="checkbox" onchange="toggleAllSubs(this)"></th><th>Subdomain</th><th>Status</th><th>HTTP</th><th>Title</th><th>First Seen</th></tr>`;
                 data.subdomains.forEach(s => {
-                    const statusClass = s.status === 'live' ? 'status-live' : 'status-dead';
+                    const cls = s.status === 'live' ? 'status-live' : 'status-dead';
                     html += `<tr>
                         <td><input type="checkbox" value="${s.id}" onchange="toggleSub(${s.id})"></td>
                         <td>${s.subdomain}</td>
-                        <td><span class="${statusClass}">${s.status || '?'}</span></td>
+                        <td><span class="${cls}">${s.status || '?'}</span></td>
                         <td>${s.http_status || '-'}</td>
                         <td>${(s.title || '-').substring(0, 40)}</td>
-                        <td style="color:#64748b;font-size:0.7rem;">${s.first_seen ? new Date(s.first_seen).toLocaleDateString() : '-'}</td>
+                        <td style="color:#555b67;font-size:11px;">${s.first_seen ? new Date(s.first_seen).toLocaleDateString() : '-'}</td>
                     </tr>`;
                 });
                 html += '</table>';
@@ -591,7 +1019,7 @@
         }
 
         function toggleAllSubs(el) {
-            document.querySelectorAll('.sub-table input[type="checkbox"][value]').forEach(cb => {
+            document.querySelectorAll('.data-table input[type="checkbox"][value]').forEach(cb => {
                 cb.checked = el.checked;
                 const id = parseInt(cb.value);
                 if (el.checked) selectedSubIds.add(id);
@@ -602,8 +1030,8 @@
 
         function updateBulkBtn() {
             const btn = document.getElementById('bulkDeleteBtn');
-            btn.style.display = selectedSubIds.size > 0 ? 'inline-block' : 'none';
-            btn.textContent = `🗑 Delete (${selectedSubIds.size})`;
+            btn.style.display = selectedSubIds.size > 0 ? 'inline-flex' : 'none';
+            btn.textContent = `Delete (${selectedSubIds.size})`;
         }
 
         async function bulkDeleteSubdomains() {
