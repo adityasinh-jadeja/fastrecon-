@@ -9,10 +9,12 @@ import csv
 import io
 import json
 import os
+import secrets
 import time
 import threading
 import queue
 from datetime import datetime
+from functools import wraps
 
 from flask import Flask, render_template, request, jsonify, Response, send_file
 from fastrecon.engine import ReconEngine
@@ -28,6 +30,28 @@ app = Flask(
     static_folder=os.path.join(os.path.dirname(__file__), "static"),
 )
 
+# ──────────────────────────────────────────────
+#  API Key Authentication
+# ──────────────────────────────────────────────
+
+API_KEY = os.environ.get("FASTRECON_API_KEY")
+if not API_KEY:
+    API_KEY = secrets.token_hex(16)
+    print(f"[!] No FASTRECON_API_KEY set. Generated one-time key: {API_KEY}")
+    print(f"    Set FASTRECON_API_KEY env var to persist this across restarts.")
+
+
+def require_api_key(f):
+    """Decorator that enforces API key authentication on routes."""
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        key = request.headers.get("X-API-Key") or request.args.get("api_key")
+        if not key or not secrets.compare_digest(key, API_KEY):
+            return jsonify({"error": "Unauthorized"}), 401
+        return f(*args, **kwargs)
+    return wrapper
+
+
 # Database instance for persistent storage
 db = ScanDatabase()
 
@@ -37,6 +61,7 @@ scan_store = {
     "progress_queue": queue.Queue(),
     "results": {},  # in-memory cache for active scan results
 }
+
 
 
 def run_scan_async(target, mode, skip_cloud, skip_ports, skip_vulns, skip_endpoints, scan_id):
@@ -121,6 +146,7 @@ def results_page(scan_id):
 # ──────────────────────────────────────────────
 
 @app.route("/api/scan", methods=["POST"])
+@require_api_key
 def start_scan():
     """Start a new scan."""
     if scan_store["current_scan"]:
@@ -166,6 +192,7 @@ def start_scan():
 
 
 @app.route("/api/progress")
+@require_api_key
 def scan_progress():
     """Server-Sent Events endpoint for real-time scan progress."""
     def generate():
@@ -188,6 +215,7 @@ def scan_progress():
 # ──────────────────────────────────────────────
 
 @app.route("/api/results/<scan_id>")
+@require_api_key
 def get_results(scan_id):
     """Get scan results as JSON."""
     result = scan_store["results"].get(scan_id)
@@ -199,6 +227,7 @@ def get_results(scan_id):
 
 
 @app.route("/api/report/<scan_id>")
+@require_api_key
 def get_html_report(scan_id):
     """Get scan results as a downloadable HTML report."""
     result = scan_store["results"].get(scan_id)
@@ -215,6 +244,7 @@ def get_html_report(scan_id):
 # ──────────────────────────────────────────────
 
 @app.route("/api/history")
+@require_api_key
 def get_history():
     """Get scan history from database."""
     target = request.args.get("target")
@@ -238,6 +268,7 @@ def get_history():
 
 
 @app.route("/api/stats")
+@require_api_key
 def get_stats():
     """Get aggregate scan statistics."""
     stats = db.get_scan_stats()
@@ -249,6 +280,7 @@ def get_stats():
 # ──────────────────────────────────────────────
 
 @app.route("/api/targets", methods=["GET"])
+@require_api_key
 def list_targets():
     """List all saved targets."""
     targets = db.get_targets()
@@ -256,6 +288,7 @@ def list_targets():
 
 
 @app.route("/api/targets", methods=["POST"])
+@require_api_key
 def add_target():
     """Save a new target domain."""
     data = request.json or {}
@@ -271,6 +304,7 @@ def add_target():
 
 
 @app.route("/api/targets/<int:target_id>", methods=["DELETE"])
+@require_api_key
 def delete_target(target_id):
     """Delete a target and all its subdomains."""
     deleted = db.delete_target(target_id)
@@ -284,6 +318,7 @@ def delete_target(target_id):
 # ──────────────────────────────────────────────
 
 @app.route("/api/subdomains/<target>")
+@require_api_key
 def list_subdomains(target):
     """List stored subdomains for a target with optional search."""
     search = request.args.get("search", "")
@@ -296,6 +331,7 @@ def list_subdomains(target):
 
 
 @app.route("/api/subdomains", methods=["DELETE"])
+@require_api_key
 def bulk_delete_subdomains():
     """Bulk delete subdomains by IDs."""
     data = request.json or {}
@@ -313,6 +349,7 @@ def bulk_delete_subdomains():
 # ──────────────────────────────────────────────
 
 @app.route("/api/scans/<scan_id>", methods=["DELETE"])
+@require_api_key
 def delete_scan(scan_id):
     """Delete a scan and its data."""
     db.delete_scan(scan_id)
@@ -322,6 +359,7 @@ def delete_scan(scan_id):
 
 
 @app.route("/api/scans/purge", methods=["POST"])
+@require_api_key
 def purge_old_scans():
     """Purge scans older than N days."""
     data = request.json or {}
@@ -335,6 +373,7 @@ def purge_old_scans():
 # ──────────────────────────────────────────────
 
 @app.route("/api/export/<scan_id>/csv")
+@require_api_key
 def export_csv(scan_id):
     """Export scan results as CSV (alerts, subdomains, endpoints)."""
     result = scan_store["results"].get(scan_id)
@@ -359,6 +398,7 @@ def export_csv(scan_id):
 
 
 @app.route("/api/export/<scan_id>/json")
+@require_api_key
 def export_json(scan_id):
     """Export scan results as timestamped JSON download."""
     result = scan_store["results"].get(scan_id)

@@ -17,6 +17,9 @@ services:
       - ./data:/app/data
     environment:
       - PYTHONUNBUFFERED=1
+      # API Key for authenticating requests to /api/* endpoints.
+      # If not set, a random key is generated and printed on startup.
+      # - FASTRECON_API_KEY=your-secret-key-here
       # Optional: Set webhook URLs via environment
       # - FASTRECON_DISCORD_WEBHOOK=https://discord.com/api/webhooks/...
       # - FASTRECON_SLACK_WEBHOOK=https://hooks.slack.com/services/...
