@@ -1,3 +1,5 @@
+![CI](https://github.com/adityasinh-jadeja/fastrecon-/actions/workflows/ci.yml/badge.svg)
+
 # FastRecon ⚡ v3.1
 
 **An automated security reconnaissance & vulnerability scanning framework for bug bounty hunters, penetration testers, and security researchers.**
@@ -65,7 +67,7 @@ graph TB
 ### Option 1: Local (pip)
 
 ```bash
-git clone https://github.com/adityasinh-jadeja/fastrecon.git
+git clone https://github.com/adityasinh-jadeja/fastrecon-.git
 cd fastrecon
 pip install -r requirements.txt
 ```
@@ -290,6 +292,16 @@ fastrecon/
 | `POST` | `/api/scans/purge` | Purge old scans |
 | `GET` | `/api/export/<id>/csv` | Download CSV export |
 | `GET` | `/api/export/<id>/json` | Download JSON export |
+
+---
+
+## ⚠️ Known Limitations
+
+- **Single concurrent scan**: The web UI runs one scan at a time using an in-process thread. For multi-scan workloads, a proper job queue (Celery/RQ + Redis) would be needed.
+- **No persistent auth sessions**: API key auth is stateless — every request must include the key. A session/JWT system would improve the UX for browser-based usage.
+- **DNS resolution for SSRF blocking is point-in-time**: A target could pass validation and then have its DNS changed (DNS rebinding). Rate-limiting and post-resolution checks would mitigate this.
+- **SQLite for single-user use**: Sufficient for a local tool, but would need PostgreSQL or similar for a multi-user hosted version.
+- **No rate limiting on API endpoints**: Could be abused if exposed publicly. Consider adding Flask-Limiter for production deployments.
 
 ---
 
