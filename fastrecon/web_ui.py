@@ -19,6 +19,7 @@ from fastrecon.engine import ReconEngine
 from fastrecon.reporter import generate_html_report, generate_csv_report
 from fastrecon.db import ScanDatabase
 from fastrecon import __version__
+from fastrecon.validation import is_safe_target
 
 
 app = Flask(
@@ -133,6 +134,10 @@ def start_scan():
 
     # Clean target (remove protocol, trailing slashes)
     target = target.replace("https://", "").replace("http://", "").rstrip("/").split("/")[0]
+
+    # SSRF prevention: validate target is a safe public domain
+    if not is_safe_target(target):
+        return jsonify({"error": "Invalid or disallowed target"}), 400
 
     mode = data.get("mode", "normal")
     skip_cloud = data.get("skipCloud", False)

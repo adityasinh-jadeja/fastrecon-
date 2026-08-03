@@ -12,6 +12,7 @@ import io
 from fastrecon import __version__
 from fastrecon.config import BANNER, DISCORD_WEBHOOK_PREFIX, SLACK_WEBHOOK_PREFIX
 from fastrecon.engine import ReconEngine
+from fastrecon.validation import is_safe_target
 
 
 def _setup_encoding():
@@ -165,6 +166,12 @@ def main():
     # CLI mode requires target
     if not args.target:
         print("[!] Error: --target is required for CLI scan. Use --web for web UI.")
+        sys.exit(1)
+
+    # Validate target (SSRF prevention)
+    if not is_safe_target(args.target):
+        print(f"[!] Error: '{args.target}' is not a valid or allowed target.")
+        print(f"    Targets must be public domains (no IPs, localhost, or internal hosts).")
         sys.exit(1)
 
     # Print banner
