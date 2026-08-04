@@ -3,6 +3,7 @@ FastRecon Fingerprint — Technology and WAF detection from HTTP responses.
 """
 
 import re
+
 from fastrecon.config import TECH_SIGNATURES
 
 
@@ -169,7 +170,7 @@ async def run_fingerprinting(url, headers, body):
         (technologies list, insights list)
     """
     print(f"\n{'='*60}")
-    print(f"  PHASE 5: TECHNOLOGY FINGERPRINTING")
+    print("  PHASE 5: TECHNOLOGY FINGERPRINTING")
     print(f"{'='*60}")
 
     technologies = fingerprint_technologies(url, headers, body)
@@ -182,7 +183,7 @@ async def run_fingerprinting(url, headers, body):
         print(f"  {icon} {tech['name']} ({tech['category']}) — {confidence}% confidence")
 
     if insights:
-        print(f"\n  Security insights:")
+        print("\n  Security insights:")
         for insight in insights:
             risk_icon = {"HIGH": "🔴", "MEDIUM": "🟠", "LOW": "🟡"}.get(insight["risk"], "⚪")
             print(f"    {risk_icon} [{insight['technology']}] {insight['insight'][:80]}...")

@@ -3,11 +3,10 @@ FastRecon Database — SQLite-backed state tracking, diff engine, and data manag
 Surfaces only NEW subdomains per scan cycle and persists all scan history.
 """
 
-import sqlite3
-import os
 import json
-from datetime import datetime, timezone, timedelta
-
+import os
+import sqlite3
+from datetime import datetime, timedelta, timezone
 
 DB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 DB_PATH = os.path.join(DB_DIR, "fastrecon.db")

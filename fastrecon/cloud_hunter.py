@@ -6,6 +6,7 @@ import asyncio
 import re
 import ssl
 from datetime import datetime, timezone
+
 from fastrecon.config import BUCKET_SUFFIXES, CLOUD_PROVIDERS, DEFAULT_TIMEOUT
 
 
@@ -159,7 +160,7 @@ async def hunt_cloud_storage(session, target, semaphore, wordlist=None):
         (buckets_found, alerts) — lists of bucket info dicts and alert dicts
     """
     print(f"\n{'='*60}")
-    print(f"  PHASE 9: CLOUD STORAGE HUNTING")
+    print("  PHASE 9: CLOUD STORAGE HUNTING")
     print(f"{'='*60}")
 
     # Use custom wordlist if provided

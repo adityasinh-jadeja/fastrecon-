@@ -3,11 +3,11 @@ FastRecon ⚡ v3 — CLI Entry Point
 Automated reconnaissance & vulnerability scanning pipeline for bug bounty hunters.
 """
 
-import asyncio
 import argparse
+import asyncio
+import io
 import os
 import sys
-import io
 
 from fastrecon import __version__
 from fastrecon.config import BANNER, DISCORD_WEBHOOK_PREFIX, SLACK_WEBHOOK_PREFIX
@@ -134,7 +134,7 @@ def resolve_webhook(cli_value, env_var, prefix, name):
         if not url.startswith(prefix):
             print(f"[!] WARNING: {name} webhook URL doesn't start with {prefix}")
             print(f"    Provided: {url[:60]}...")
-            print(f"    Webhook will be skipped for security.")
+            print("    Webhook will be skipped for security.")
             return None
     return url
 
@@ -171,7 +171,7 @@ def main():
     # Validate target (SSRF prevention)
     if not is_safe_target(args.target):
         print(f"[!] Error: '{args.target}' is not a valid or allowed target.")
-        print(f"    Targets must be public domains (no IPs, localhost, or internal hosts).")
+        print("    Targets must be public domains (no IPs, localhost, or internal hosts).")
         sys.exit(1)
 
     # Print banner

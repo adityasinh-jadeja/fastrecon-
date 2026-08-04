@@ -2,10 +2,7 @@
 FastRecon Webhooks — Real-time Discord & Slack alerting with batched delivery.
 """
 
-import asyncio
-import json
 from datetime import datetime, timezone
-
 
 # --- Severity color mapping ---
 SEVERITY_COLORS = {

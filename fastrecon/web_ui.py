@@ -5,24 +5,23 @@ subdomain search & bulk delete, scan purging, and CSV/JSON export.
 """
 
 import asyncio
-import csv
 import io
 import json
 import os
-import secrets
-import time
-import threading
 import queue
+import secrets
+import threading
+import time
 from datetime import datetime
 from functools import wraps
 
-from flask import Flask, render_template, request, jsonify, Response, send_file
-from fastrecon.engine import ReconEngine
-from fastrecon.reporter import generate_html_report, generate_csv_report
-from fastrecon.db import ScanDatabase
-from fastrecon import __version__
-from fastrecon.validation import is_safe_target
+from flask import Flask, Response, jsonify, render_template, request
 
+from fastrecon import __version__
+from fastrecon.db import ScanDatabase
+from fastrecon.engine import ReconEngine
+from fastrecon.reporter import generate_csv_report, generate_html_report
+from fastrecon.validation import is_safe_target
 
 app = Flask(
     __name__,
@@ -38,7 +37,7 @@ API_KEY = os.environ.get("FASTRECON_API_KEY")
 if not API_KEY:
     API_KEY = secrets.token_hex(16)
     print(f"[!] No FASTRECON_API_KEY set. Generated one-time key: {API_KEY}")
-    print(f"    Set FASTRECON_API_KEY env var to persist this across restarts.")
+    print("    Set FASTRECON_API_KEY env var to persist this across restarts.")
 
 
 def require_api_key(f):
@@ -426,6 +425,6 @@ def start_web_ui(host="0.0.0.0", port=5000, debug=False):
     print(f"\n{'='*60}")
     print(f"  ⚡ FastRecon Web UI v{__version__}")
     print(f"  🌐 Open http://localhost:{port} in your browser")
-    print(f"  Press Ctrl+C to stop")
+    print("  Press Ctrl+C to stop")
     print(f"{'='*60}\n")
     app.run(host=host, port=port, debug=debug, threaded=True)

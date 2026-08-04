@@ -7,10 +7,15 @@ import asyncio
 import re
 import ssl
 from datetime import datetime, timezone
+
 from fastrecon.config import (
-    XSS_PAYLOADS, SQLI_PAYLOADS, OPEN_REDIRECT_PAYLOADS,
-    CRLF_PAYLOADS, SQL_ERROR_PATTERNS, INJECTABLE_PARAMS,
+    CRLF_PAYLOADS,
+    INJECTABLE_PARAMS,
+    OPEN_REDIRECT_PAYLOADS,
+    SQL_ERROR_PATTERNS,
+    SQLI_PAYLOADS,
     VULN_SCAN_TIMEOUT,
+    XSS_PAYLOADS,
 )
 
 
@@ -476,7 +481,7 @@ async def run_vuln_scan(session, target, base_url, mode="normal", concurrency=10
         List of vulnerability/finding dicts
     """
     print(f"\n{'='*60}")
-    print(f"  PHASE 7: VULNERABILITY SCANNING")
+    print("  PHASE 7: VULNERABILITY SCANNING")
     print(f"{'='*60}")
     print(f"  Running vulnerability checks on {base_url}...")
 
@@ -513,7 +518,7 @@ async def run_vuln_scan(session, target, base_url, mode="normal", concurrency=10
                     icon = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🔵", "LOW": "🟡"}.get(f["severity"], "⚪")
                     print(f"    {icon} {f['severity']}: {f['type']}")
             else:
-                print(f"    ✓ Clean")
+                print("    ✓ Clean")
         except Exception as e:
             print(f"    ✗ Check failed: {e}")
 

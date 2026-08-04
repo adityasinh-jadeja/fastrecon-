@@ -6,8 +6,11 @@ import asyncio
 import re
 import ssl
 from datetime import datetime, timezone
+
 from fastrecon.config import (
-    ENDPOINT_PATHS_SMALL, ENDPOINT_PATHS_MEDIUM, ENDPOINT_PATHS_LARGE,
+    ENDPOINT_PATHS_LARGE,
+    ENDPOINT_PATHS_MEDIUM,
+    ENDPOINT_PATHS_SMALL,
     ENDPOINT_TIMEOUT,
 )
 
@@ -280,7 +283,7 @@ async def run_endpoint_discovery(session, target, base_url, html_body="", mode="
         (endpoints list, js_files list, api_endpoints list, html_links list, alerts list)
     """
     print(f"\n{'='*60}")
-    print(f"  PHASE 6: ENDPOINT DISCOVERY")
+    print("  PHASE 6: ENDPOINT DISCOVERY")
     print(f"{'='*60}")
 
     semaphore = asyncio.Semaphore(concurrency)
@@ -307,7 +310,7 @@ async def run_endpoint_discovery(session, target, base_url, html_body="", mode="
             print(f"  {severity_icon} [{result['status']}] {result['path']} — {result['type']}")
 
     # Extract JS links and API endpoints
-    print(f"\n  Extracting JS files and API endpoints...")
+    print("\n  Extracting JS files and API endpoints...")
     js_files, api_endpoints = await extract_js_links(session, base_url, html_body, semaphore)
     print(f"  [JS] Found {len(js_files)} JS files, {len(api_endpoints)} API endpoints")
 

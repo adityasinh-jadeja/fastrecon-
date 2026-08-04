@@ -3,7 +3,8 @@ FastRecon Header Analyzer — Deep HTTP security header analysis with grading.
 """
 
 from datetime import datetime, timezone
-from fastrecon.config import SECURITY_HEADERS, HEADER_GRADES
+
+from fastrecon.config import HEADER_GRADES, SECURITY_HEADERS
 
 
 def analyze_headers(url, headers):
@@ -153,7 +154,7 @@ async def run_header_analysis(url, headers):
         (header_report dict, alerts list)
     """
     print(f"\n{'='*60}")
-    print(f"  PHASE 8: SECURITY HEADER ANALYSIS")
+    print("  PHASE 8: SECURITY HEADER ANALYSIS")
     print(f"{'='*60}")
 
     header_report, alerts = analyze_headers(url, headers)

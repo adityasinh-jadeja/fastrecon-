@@ -4,9 +4,10 @@ Pure Python implementation using socket and asyncio.
 """
 
 import asyncio
-import socket
 import re
+import socket
 from datetime import datetime, timezone
+
 from fastrecon.config import DNS_TIMEOUT
 
 
@@ -89,7 +90,6 @@ async def resolve_txt(domain):
                 capture_output=True, text=True, timeout=DNS_TIMEOUT + 2,
             )
             txt_entries = []
-            in_answer = False
             for line in result.stdout.split("\n"):
                 line = line.strip()
                 if "text =" in line.lower() or line.startswith('"'):
@@ -325,7 +325,7 @@ async def run_dns_recon(domain):
     Returns: (dns_info dict, alerts list)
     """
     print(f"\n{'='*60}")
-    print(f"  PHASE 1: DNS RECONNAISSANCE")
+    print("  PHASE 1: DNS RECONNAISSANCE")
     print(f"{'='*60}")
 
     dns_info = {
@@ -340,31 +340,31 @@ async def run_dns_recon(domain):
     alerts = []
 
     # Resolve A records
-    print(f"  [DNS] Resolving A records...")
+    print("  [DNS] Resolving A records...")
     dns_info["a_records"] = await resolve_dns(domain, "A")
     if dns_info["a_records"]:
         print(f"  [DNS] A: {', '.join(dns_info['a_records'])}")
 
     # Resolve AAAA records
-    print(f"  [DNS] Resolving AAAA records...")
+    print("  [DNS] Resolving AAAA records...")
     dns_info["aaaa_records"] = await resolve_dns(domain, "AAAA")
     if dns_info["aaaa_records"]:
         print(f"  [DNS] AAAA: {', '.join(dns_info['aaaa_records'])}")
 
     # Resolve NS records
-    print(f"  [DNS] Resolving NS records...")
+    print("  [DNS] Resolving NS records...")
     dns_info["ns_records"] = await resolve_ns(domain)
     if dns_info["ns_records"]:
         print(f"  [DNS] NS: {', '.join(dns_info['ns_records'][:5])}")
 
     # Resolve MX records
-    print(f"  [DNS] Resolving MX records...")
+    print("  [DNS] Resolving MX records...")
     dns_info["mx_records"] = await resolve_mx(domain)
     if dns_info["mx_records"]:
         print(f"  [DNS] MX: {len(dns_info['mx_records'])} record(s)")
 
     # Resolve TXT records
-    print(f"  [DNS] Resolving TXT records...")
+    print("  [DNS] Resolving TXT records...")
     dns_info["txt_records"] = await resolve_txt(domain)
     if dns_info["txt_records"]:
         print(f"  [DNS] TXT: {len(dns_info['txt_records'])} record(s)")
@@ -383,21 +383,21 @@ async def run_dns_recon(domain):
 
     # Check zone transfer
     if dns_info["ns_records"]:
-        print(f"  [DNS] Checking zone transfer (AXFR)...")
+        print("  [DNS] Checking zone transfer (AXFR)...")
         zt_alerts = await check_zone_transfer(domain, dns_info["ns_records"])
         alerts.extend(zt_alerts)
         if not zt_alerts:
-            print(f"  [DNS] Zone transfer not allowed (good)")
+            print("  [DNS] Zone transfer not allowed (good)")
 
     # Check wildcard DNS
-    print(f"  [DNS] Checking wildcard DNS...")
+    print("  [DNS] Checking wildcard DNS...")
     is_wildcard, wildcard_ips = await check_wildcard(domain)
     dns_info["wildcard"] = is_wildcard
     dns_info["wildcard_ips"] = wildcard_ips
     if is_wildcard:
-        print(f"  [DNS] ⚠ Wildcard DNS detected — subdomain results may include false positives")
+        print("  [DNS] ⚠ Wildcard DNS detected — subdomain results may include false positives")
     else:
-        print(f"  [DNS] No wildcard DNS (good)")
+        print("  [DNS] No wildcard DNS (good)")
 
     # Summary
     print(f"\n  ✓ DNS Recon complete — {len(alerts)} finding(s)")

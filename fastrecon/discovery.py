@@ -4,8 +4,9 @@ Supports 6 built-in OSINT APIs + optional Subfinder and Amass CLI tools.
 """
 
 import asyncio
-import shutil
 import re
+import shutil
+
 from fastrecon.config import DISCOVERY_TIMEOUT
 
 
@@ -13,7 +14,7 @@ async def discover_crtsh(session, target):
     """Query crt.sh certificate transparency logs for subdomains."""
     subdomains = set()
     url = f"https://crt.sh/?q=%25.{target}&output=json"
-    print(f"  [crt.sh] Querying certificate transparency logs...")
+    print("  [crt.sh] Querying certificate transparency logs...")
     try:
         async with session.get(url, timeout=DISCOVERY_TIMEOUT) as response:
             if response.status == 200:
@@ -28,7 +29,7 @@ async def discover_crtsh(session, target):
             else:
                 print(f"  [crt.sh] Returned status {response.status}")
     except asyncio.TimeoutError:
-        print(f"  [crt.sh] Request timed out")
+        print("  [crt.sh] Request timed out")
     except Exception as e:
         print(f"  [crt.sh] Discovery failed: {e}")
     return subdomains
@@ -38,7 +39,7 @@ async def discover_hackertarget(session, target):
     """Query HackerTarget API for subdomains (free, no API key)."""
     subdomains = set()
     url = f"https://api.hackertarget.com/hostsearch/?q={target}"
-    print(f"  [HackerTarget] Querying host search API...")
+    print("  [HackerTarget] Querying host search API...")
     try:
         async with session.get(url, timeout=DISCOVERY_TIMEOUT) as response:
             if response.status == 200:
@@ -53,11 +54,11 @@ async def discover_hackertarget(session, target):
                                 subdomains.add(name)
                     print(f"  [HackerTarget] Found {len(subdomains)} subdomains")
                 else:
-                    print(f"  [HackerTarget] API limit reached or error")
+                    print("  [HackerTarget] API limit reached or error")
             else:
                 print(f"  [HackerTarget] Returned status {response.status}")
     except asyncio.TimeoutError:
-        print(f"  [HackerTarget] Request timed out")
+        print("  [HackerTarget] Request timed out")
     except Exception as e:
         print(f"  [HackerTarget] Discovery failed: {e}")
     return subdomains
@@ -67,7 +68,7 @@ async def discover_alienvault(session, target):
     """Query AlienVault OTX for subdomains (free, no API key)."""
     subdomains = set()
     url = f"https://otx.alienvault.com/api/v1/indicators/domain/{target}/passive_dns"
-    print(f"  [AlienVault OTX] Querying passive DNS...")
+    print("  [AlienVault OTX] Querying passive DNS...")
     try:
         async with session.get(url, timeout=DISCOVERY_TIMEOUT) as response:
             if response.status == 200:
@@ -80,7 +81,7 @@ async def discover_alienvault(session, target):
             else:
                 print(f"  [AlienVault OTX] Returned status {response.status}")
     except asyncio.TimeoutError:
-        print(f"  [AlienVault OTX] Request timed out")
+        print("  [AlienVault OTX] Request timed out")
     except Exception as e:
         print(f"  [AlienVault OTX] Discovery failed: {e}")
     return subdomains
@@ -90,7 +91,7 @@ async def discover_urlscan(session, target):
     """Query URLScan.io for subdomains (free, no API key)."""
     subdomains = set()
     url = f"https://urlscan.io/api/v1/search/?q=domain:{target}&size=100"
-    print(f"  [URLScan.io] Querying URL scan database...")
+    print("  [URLScan.io] Querying URL scan database...")
     try:
         async with session.get(url, timeout=DISCOVERY_TIMEOUT) as response:
             if response.status == 200:
@@ -104,7 +105,7 @@ async def discover_urlscan(session, target):
             else:
                 print(f"  [URLScan.io] Returned status {response.status}")
     except asyncio.TimeoutError:
-        print(f"  [URLScan.io] Request timed out")
+        print("  [URLScan.io] Request timed out")
     except Exception as e:
         print(f"  [URLScan.io] Discovery failed: {e}")
     return subdomains
@@ -114,7 +115,7 @@ async def discover_rapiddns(session, target):
     """Query RapidDNS for subdomains (free, no API key)."""
     subdomains = set()
     url = f"https://rapiddns.io/subdomain/{target}?full=1"
-    print(f"  [RapidDNS] Querying subdomain database...")
+    print("  [RapidDNS] Querying subdomain database...")
     try:
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
         async with session.get(url, timeout=DISCOVERY_TIMEOUT, headers=headers) as response:
@@ -133,7 +134,7 @@ async def discover_rapiddns(session, target):
             else:
                 print(f"  [RapidDNS] Returned status {response.status}")
     except asyncio.TimeoutError:
-        print(f"  [RapidDNS] Request timed out")
+        print("  [RapidDNS] Request timed out")
     except Exception as e:
         print(f"  [RapidDNS] Discovery failed: {e}")
     return subdomains
@@ -143,7 +144,7 @@ async def discover_webarchive(session, target):
     """Query Wayback Machine/Web Archive for historical subdomains."""
     subdomains = set()
     url = f"https://web.archive.org/cdx/search/cdx?url=*.{target}&output=json&fl=original&collapse=urlkey&limit=200"
-    print(f"  [WebArchive] Querying Wayback Machine...")
+    print("  [WebArchive] Querying Wayback Machine...")
     try:
         async with session.get(url, timeout=DISCOVERY_TIMEOUT + 10) as response:
             if response.status == 200:
@@ -161,7 +162,7 @@ async def discover_webarchive(session, target):
             else:
                 print(f"  [WebArchive] Returned status {response.status}")
     except asyncio.TimeoutError:
-        print(f"  [WebArchive] Request timed out")
+        print("  [WebArchive] Request timed out")
     except Exception as e:
         print(f"  [WebArchive] Discovery failed: {e}")
     return subdomains
@@ -171,10 +172,10 @@ async def discover_subfinder(target):
     """Run Subfinder CLI tool for subdomain discovery. Skips gracefully if not installed."""
     subdomains = set()
     if not shutil.which("subfinder"):
-        print(f"  [Subfinder] Not installed — skipping (install: go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest)")
+        print("  [Subfinder] Not installed — skipping (install: go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest)")
         return subdomains
 
-    print(f"  [Subfinder] Running passive enumeration...")
+    print("  [Subfinder] Running passive enumeration...")
     try:
         proc = await asyncio.create_subprocess_exec(
             "subfinder", "-d", target, "-silent", "-timeout", "30",
@@ -191,7 +192,7 @@ async def discover_subfinder(target):
 
         print(f"  [Subfinder] Found {len(subdomains)} subdomains")
     except asyncio.TimeoutError:
-        print(f"  [Subfinder] Timed out after 120s")
+        print("  [Subfinder] Timed out after 120s")
     except Exception as e:
         print(f"  [Subfinder] Failed: {e}")
     return subdomains
@@ -201,10 +202,10 @@ async def discover_amass(target):
     """Run Amass CLI tool for passive subdomain discovery. Skips gracefully if not installed."""
     subdomains = set()
     if not shutil.which("amass"):
-        print(f"  [Amass] Not installed — skipping (install: go install github.com/owasp-amass/amass/v4/...@master)")
+        print("  [Amass] Not installed — skipping (install: go install github.com/owasp-amass/amass/v4/...@master)")
         return subdomains
 
-    print(f"  [Amass] Running passive enumeration...")
+    print("  [Amass] Running passive enumeration...")
     try:
         proc = await asyncio.create_subprocess_exec(
             "amass", "enum", "-passive", "-d", target, "-timeout", "2",
@@ -221,7 +222,7 @@ async def discover_amass(target):
 
         print(f"  [Amass] Found {len(subdomains)} subdomains")
     except asyncio.TimeoutError:
-        print(f"  [Amass] Timed out after 180s")
+        print("  [Amass] Timed out after 180s")
     except Exception as e:
         print(f"  [Amass] Failed: {e}")
     return subdomains
@@ -230,7 +231,7 @@ async def discover_amass(target):
 async def run_discovery(session, target):
     """Run all discovery sources in parallel and merge results."""
     print(f"\n{'='*60}")
-    print(f"  PHASE 2: SUBDOMAIN DISCOVERY")
+    print("  PHASE 2: SUBDOMAIN DISCOVERY")
     print(f"{'='*60}")
 
     # Run all sources in parallel: 6 API sources + 2 CLI tools

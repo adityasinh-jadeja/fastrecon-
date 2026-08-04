@@ -3,13 +3,18 @@ FastRecon Port Scanner — Async TCP port scanning with banner grabbing and risk
 """
 
 import asyncio
-import ssl
 import socket
+import ssl
 from datetime import datetime, timezone
+
 from fastrecon.config import (
-    TOP_20_PORTS, TOP_100_PORTS, TOP_1000_PORTS,
-    PORT_SERVICE_MAP, DANGEROUS_PORTS,
-    PORT_SCAN_TIMEOUT, BANNER_READ_TIMEOUT,
+    BANNER_READ_TIMEOUT,
+    DANGEROUS_PORTS,
+    PORT_SCAN_TIMEOUT,
+    PORT_SERVICE_MAP,
+    TOP_20_PORTS,
+    TOP_100_PORTS,
+    TOP_1000_PORTS,
 )
 
 
@@ -205,7 +210,7 @@ async def run_port_scan(target, mode="normal", concurrency=100):
         (open_ports list, ssl_info dict, alerts list)
     """
     print(f"\n{'='*60}")
-    print(f"  PHASE 3: PORT SCANNING")
+    print("  PHASE 3: PORT SCANNING")
     print(f"{'='*60}")
 
     # Select port list based on mode

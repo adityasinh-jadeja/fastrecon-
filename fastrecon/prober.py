@@ -2,8 +2,9 @@
 FastRecon Prober — Enhanced async live host probing with robots.txt, sitemap, and CORS checks.
 """
 
-import ssl
 import re
+import ssl
+
 from fastrecon.config import DEFAULT_TIMEOUT
 
 

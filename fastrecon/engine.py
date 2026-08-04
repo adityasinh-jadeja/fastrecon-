@@ -7,28 +7,30 @@ Integrates SQLite state tracking, CNAME takeover detection, and batched webhooks
 
 import asyncio
 import os
-import time
-import aiohttp
 import ssl
-import json
+import time
 
-from fastrecon.config import DEFAULT_CONCURRENCY, SCAN_MODES
-from fastrecon.dns_recon import run_dns_recon
-from fastrecon.discovery import run_discovery
-from fastrecon.port_scanner import run_port_scan
-from fastrecon.prober import probe_host, fetch_robots_txt, fetch_sitemap, fetch_well_known
-from fastrecon.fingerprint import run_fingerprinting
-from fastrecon.endpoint_discovery import run_endpoint_discovery
-from fastrecon.vuln_scanner import run_vuln_scan
-from fastrecon.header_analyzer import run_header_analysis
-from fastrecon.takeover import check_takeover, check_takeover_cname
+import aiohttp
+
 from fastrecon.cloud_hunter import hunt_cloud_storage
-from fastrecon.webhooks import send_alert, send_scan_summary, AlertBatcher
-from fastrecon.reporter import (
-    generate_report, save_report, generate_html_report,
-    generate_csv_report, save_timestamped_report,
-)
+from fastrecon.config import DEFAULT_CONCURRENCY, SCAN_MODES
 from fastrecon.db import ScanDatabase
+from fastrecon.discovery import run_discovery
+from fastrecon.dns_recon import run_dns_recon
+from fastrecon.endpoint_discovery import run_endpoint_discovery
+from fastrecon.fingerprint import run_fingerprinting
+from fastrecon.header_analyzer import run_header_analysis
+from fastrecon.port_scanner import run_port_scan
+from fastrecon.prober import fetch_robots_txt, fetch_sitemap, fetch_well_known, probe_host
+from fastrecon.reporter import (
+    generate_csv_report,
+    generate_html_report,
+    generate_report,
+    save_report,
+)
+from fastrecon.takeover import check_takeover, check_takeover_cname
+from fastrecon.vuln_scanner import run_vuln_scan
+from fastrecon.webhooks import AlertBatcher, send_scan_summary
 
 
 class ReconEngine:
@@ -192,7 +194,7 @@ class ReconEngine:
                     print(f"\n  [!] Port scan failed: {e}")
             else:
                 print(f"\n{'='*60}")
-                print(f"  PHASE 3: PORT SCANNING [SKIPPED]")
+                print("  PHASE 3: PORT SCANNING [SKIPPED]")
                 print(f"{'='*60}")
 
             # ── Phase 4: Host Probing + CNAME Takeover ──
@@ -204,7 +206,7 @@ class ReconEngine:
 
             # Fetch robots.txt, sitemap, .well-known from primary URL
             if self.primary_url:
-                print(f"\n  Fetching robots.txt, sitemap.xml, .well-known...")
+                print("\n  Fetching robots.txt, sitemap.xml, .well-known...")
                 self.robots_paths = await fetch_robots_txt(session, self.primary_url, semaphore)
                 self.sitemap_urls = await fetch_sitemap(session, self.primary_url, semaphore)
                 self.well_known = await fetch_well_known(session, self.primary_url, semaphore)
@@ -242,7 +244,7 @@ class ReconEngine:
                     print(f"\n  [!] Endpoint discovery failed: {e}")
             else:
                 print(f"\n{'='*60}")
-                print(f"  PHASE 6: ENDPOINT DISCOVERY [SKIPPED]")
+                print("  PHASE 6: ENDPOINT DISCOVERY [SKIPPED]")
                 print(f"{'='*60}")
 
             # ── Phase 7: Vulnerability Scanning ──
@@ -259,7 +261,7 @@ class ReconEngine:
                     print(f"\n  [!] Vulnerability scan failed: {e}")
             else:
                 print(f"\n{'='*60}")
-                print(f"  PHASE 7: VULNERABILITY SCANNING [SKIPPED]")
+                print("  PHASE 7: VULNERABILITY SCANNING [SKIPPED]")
                 print(f"{'='*60}")
 
             # ── Phase 8: Security Header Analysis ──
@@ -279,7 +281,7 @@ class ReconEngine:
                 await self._hunt_cloud(session, semaphore, batcher)
             else:
                 print(f"\n{'='*60}")
-                print(f"  PHASE 9: CLOUD STORAGE HUNTING [SKIPPED]")
+                print("  PHASE 9: CLOUD STORAGE HUNTING [SKIPPED]")
                 print(f"{'='*60}")
 
             # ── Phase 10: Report Generation ──
@@ -347,7 +349,7 @@ class ReconEngine:
             if batcher.has_webhooks:
                 await batcher.flush()
                 print(f"\n  📡 Sent {batcher.sent_count} alert(s) via webhooks")
-                print(f"  📡 Sending scan summary to webhooks...")
+                print("  📡 Sending scan summary to webhooks...")
                 await send_scan_summary(
                     session, report,
                     discord_url=self.discord_webhook,
@@ -383,7 +385,7 @@ class ReconEngine:
     async def _probe_and_detect(self, session, semaphore, batcher):
         """Phase 4: Probe live hosts, check for subdomain takeovers (HTML + CNAME)."""
         print(f"\n{'='*60}")
-        print(f"  PHASE 4: HOST PROBING & TAKEOVER DETECTION")
+        print("  PHASE 4: HOST PROBING & TAKEOVER DETECTION")
         print(f"{'='*60}")
         print(f"  Probing {len(self.discovered_subdomains)} subdomains...")
 
@@ -466,24 +468,24 @@ class ReconEngine:
         risk_score = report.get("riskScore", 0) if report else 0
 
         print(f"\n{'='*60}")
-        print(f"  SCAN COMPLETE")
+        print("  SCAN COMPLETE")
         print(f"{'='*60}")
         print(f"  Target:         {self.target}")
         print(f"  Duration:       {scan_duration}")
         print(f"  Mode:           {self.mode}")
         print(f"  Risk Level:     {risk_level} ({risk_score}/100)")
-        print(f"  ─────────────────────────────────")
+        print("  ─────────────────────────────────")
         print(f"  Subdomains:     {stats.get('subdomainsDiscovered', 0)}")
         print(f"  New This Scan:  {len(self.new_subdomains)}")
         print(f"  Live Hosts:     {stats.get('liveHosts', 0)}")
         print(f"  Open Ports:     {stats.get('openPorts', 0)}")
         print(f"  Vulnerabilities:{stats.get('vulnerabilities', 0)}")
-        print(f"  ─────────────────────────────────")
+        print("  ─────────────────────────────────")
         print(f"  🔴 Critical:    {stats.get('criticalAlerts', 0)}")
         print(f"  🟠 High:        {stats.get('highAlerts', 0)}")
         print(f"  🟡 Medium:      {stats.get('mediumAlerts', 0)}")
         print(f"  🟢 Low:         {stats.get('lowAlerts', 0)}")
-        print(f"  ─────────────────────────────────")
+        print("  ─────────────────────────────────")
         print(f"  Total Alerts:   {stats.get('totalAlerts', 0)}")
         print(f"  Report:         {self.output_file}")
         print(f"{'='*60}\n")
