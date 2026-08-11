@@ -1,13 +1,23 @@
 """
 FastRecon Takeover — Subdomain takeover detection with expanded signatures.
 Supports both HTML body fingerprint matching and CNAME resolution + dangling check.
+
+Uses dnspython for proper CNAME record querying (walks the full chain)
+and only flags NXDOMAIN as dangling — not timeouts or transient errors.
 """
 
 import asyncio
-import socket
+import secrets
 from datetime import datetime, timezone
 
+import dns.exception
+import dns.name
+import dns.resolver
+
 from fastrecon.config import TAKEOVER_SIGNATURES
+
+# Maximum CNAME chain depth to walk before assuming a loop
+MAX_CNAME_DEPTH = 10
 
 
 def check_takeover(subdomain, html_body):
@@ -43,61 +53,109 @@ def check_takeover(subdomain, html_body):
     return None
 
 
-async def resolve_cname(subdomain):
+async def resolve_cname_chain(subdomain):
     """
-    Resolve CNAME record for a subdomain.
-    Returns the CNAME target or None if no CNAME exists.
+    Resolve the full CNAME chain for a subdomain using dnspython.
+    Walks up to MAX_CNAME_DEPTH hops to avoid infinite loops.
+
+    Returns:
+        A list of CNAME targets in chain order, e.g.
+        ['alias1.example.com', 'alias2.cdn.net', 'final.target.net'].
+        Returns an empty list if no CNAME record exists or on timeout/error.
     """
     loop = asyncio.get_event_loop()
-    try:
-        def _resolve():
-            try:
-                cname = socket.getfqdn(subdomain)
-                if cname and cname != subdomain and cname != subdomain + ".":
-                    return cname
-                # Fallback: try getaddrinfo and check canonical name
-                infos = socket.getaddrinfo(subdomain, None, socket.AF_INET, socket.SOCK_STREAM)
-                if infos:
-                    canonical = infos[0][3]  # canonical name field
-                    if canonical and canonical != subdomain:
-                        return canonical
-            except Exception:
-                pass
-            return None
 
+    def _resolve():
+        chain = []
+        current = subdomain
+        seen = set()
+
+        for _ in range(MAX_CNAME_DEPTH):
+            if current in seen:
+                break  # Circular CNAME — stop
+            seen.add(current)
+
+            try:
+                answers = dns.resolver.resolve(current, "CNAME")
+                target = str(answers[0].target).rstrip(".")
+                chain.append(target)
+                current = target
+            except dns.resolver.NoAnswer:
+                # No CNAME record for this name — end of chain
+                break
+            except dns.resolver.NXDOMAIN:
+                # The name itself doesn't exist — still record the chain
+                break
+            except (dns.resolver.NoNameservers, dns.exception.Timeout):
+                # Transient DNS failure — don't treat as meaningful
+                break
+            except Exception:
+                break
+
+        return chain
+
+    try:
         return await asyncio.wait_for(
             loop.run_in_executor(None, _resolve),
-            timeout=5,
+            timeout=10,
+        )
+    except (asyncio.TimeoutError, Exception):
+        return []
+
+
+async def check_nxdomain(hostname):
+    """
+    Check if a hostname returns NXDOMAIN (definitively does not exist).
+    Only dns.resolver.NXDOMAIN is treated as "dangling."
+    Timeouts, NoNameservers, and other errors return None (inconclusive).
+
+    Returns:
+        True  — confirmed NXDOMAIN (hostname does not exist)
+        False — hostname resolves (exists)
+        None  — inconclusive (timeout, transient error)
+    """
+    loop = asyncio.get_event_loop()
+
+    def _check():
+        try:
+            # Try to resolve any record type (A/AAAA/CNAME)
+            dns.resolver.resolve(hostname, "A")
+            return False  # Resolves — not dangling
+        except dns.resolver.NXDOMAIN:
+            return True  # Confirmed NXDOMAIN — dangling
+        except dns.resolver.NoAnswer:
+            # Name exists but no A record — try AAAA
+            try:
+                dns.resolver.resolve(hostname, "AAAA")
+                return False  # Has AAAA — not dangling
+            except dns.resolver.NXDOMAIN:
+                return True
+            except Exception:
+                return None  # Inconclusive
+        except (dns.resolver.NoNameservers, dns.exception.Timeout):
+            return None  # Inconclusive — do NOT flag as dangling
+        except Exception:
+            return None
+
+    try:
+        return await asyncio.wait_for(
+            loop.run_in_executor(None, _check),
+            timeout=10,
         )
     except (asyncio.TimeoutError, Exception):
         return None
 
 
-async def check_cname_resolves(hostname):
-    """Check if a hostname actually resolves to an IP address."""
-    loop = asyncio.get_event_loop()
-    try:
-        def _resolve():
-            try:
-                socket.getaddrinfo(hostname, None, socket.AF_INET, socket.SOCK_STREAM)
-                return True
-            except socket.gaierror:
-                return False
-
-        return await asyncio.wait_for(
-            loop.run_in_executor(None, _resolve),
-            timeout=5,
-        )
-    except (asyncio.TimeoutError, Exception):
-        return False
-
-
 async def check_takeover_cname(subdomain):
     """
     Check for subdomain takeover via CNAME resolution.
-    Resolves the CNAME chain and checks if:
-    1. The CNAME target matches a known vulnerable service pattern
-    2. The CNAME target doesn't resolve (dangling CNAME)
+
+    Walks the full CNAME chain using dnspython and checks if:
+    1. Any CNAME target in the chain matches a known vulnerable service pattern
+    2. The terminal CNAME target is confirmed NXDOMAIN (not just a timeout)
+
+    Only flags a takeover when BOTH conditions are met, eliminating false
+    positives from transient DNS failures, IPv6-only records, etc.
 
     Args:
         subdomain: The subdomain to check
@@ -105,35 +163,54 @@ async def check_takeover_cname(subdomain):
     Returns:
         An alert dict if a dangling CNAME takeover vector is found, None otherwise.
     """
-    cname = await resolve_cname(subdomain)
-    if not cname:
+    chain = await resolve_cname_chain(subdomain)
+    if not chain:
         return None
 
-    cname_lower = cname.lower().rstrip(".")
+    # The terminal CNAME is the last entry in the chain
+    terminal_cname = chain[-1].lower().rstrip(".")
 
-    # Check CNAME against known takeover-vulnerable service patterns
+    # Check each CNAME in the chain against known takeover-vulnerable service patterns
     for service, sig in TAKEOVER_SIGNATURES.items():
         cname_pattern = sig.get("cname", "").lower()
         if not cname_pattern:
             continue
 
-        if cname_pattern in cname_lower:
-            # CNAME matches a vulnerable service — check if it's dangling
-            resolves = await check_cname_resolves(cname_lower)
+        # Check if any CNAME in the chain matches the vulnerable pattern
+        matching_cname = None
+        for cname in chain:
+            if cname_pattern in cname.lower().rstrip("."):
+                matching_cname = cname
+                break
 
-            if not resolves:
+        if matching_cname:
+            # CNAME matches a vulnerable service — verify the terminal target is NXDOMAIN
+            is_nxdomain = await check_nxdomain(terminal_cname)
+
+            if is_nxdomain is True:
+                chain_str = " → ".join(chain)
                 alert = {
                     "severity": "CRITICAL",
                     "type": "Subdomain Takeover",
                     "asset": subdomain,
                     "service": service,
-                    "details": f"Dangling CNAME detected — {subdomain} → {cname} (NXDOMAIN). "
-                               f"{service} resource no longer exists, subdomain can be claimed.",
-                    "evidence": f"CNAME: {cname} (matches {cname_pattern}, does not resolve)",
+                    "details": (
+                        f"Dangling CNAME detected — {subdomain} → {chain_str} (NXDOMAIN). "
+                        f"{service} resource no longer exists, subdomain can be claimed."
+                    ),
+                    "evidence": (
+                        f"CNAME chain: {chain_str} "
+                        f"(matches {cname_pattern}, terminal {terminal_cname} confirmed NXDOMAIN)"
+                    ),
+                    "cname_chain": chain,
                     "cname_pattern": cname_pattern,
                     "time": datetime.now(timezone.utc).strftime("%H:%M:%S"),
                 }
-                print(f"  [!!!] DANGLING CNAME TAKEOVER: {subdomain} → {cname} ({service})")
+                print(f"  [!!!] DANGLING CNAME TAKEOVER: {subdomain} → {chain_str} ({service})")
                 return alert
+            elif is_nxdomain is None:
+                # Inconclusive — log but do NOT flag as takeover
+                print(f"  [?] CNAME {subdomain} → {terminal_cname} matches {service} "
+                      f"but DNS resolution was inconclusive (timeout/error) — skipping")
 
     return None
