@@ -1,8 +1,14 @@
 """
 FastRecon Cloud Hunter — Detect misconfigured cloud storage buckets.
+
+Body verification: A 200 status code alone is not sufficient to confirm a
+publicly accessible bucket. Each provider returns provider-specific content
+when a bucket listing is truly public. We verify the response body matches
+expected patterns before flagging PUBLIC.
 """
 
 import asyncio
+import json
 import re
 import ssl
 from datetime import datetime, timezone
@@ -36,6 +42,58 @@ def generate_bucket_permutations(target):
     return list(dict.fromkeys(permutations))  # dedupe
 
 
+def _verify_public_body(provider_name, body):
+    """
+    Verify that a 200 response body actually indicates a publicly accessible
+    bucket listing, not a generic error/parked page.
+
+    Returns:
+        True if body confirms public listing, False otherwise.
+    """
+    if not body:
+        return False
+
+    if provider_name == "AWS S3":
+        # S3 public listing returns XML with <ListBucketResult>
+        return "<ListBucketResult" in body or "<Contents>" in body
+
+    elif provider_name == "GCP Storage":
+        # GCS returns JSON with "kind": "storage#objects" or an "items" array
+        try:
+            data = json.loads(body)
+            return (
+                data.get("kind") == "storage#objects"
+                or "items" in data
+            )
+        except (json.JSONDecodeError, ValueError, TypeError):
+            return False
+
+    elif provider_name == "Azure Blob":
+        # Azure Blob listing returns XML with <EnumerationResults>
+        return "<EnumerationResults" in body or "<Blobs>" in body
+
+    elif provider_name == "Firebase RTDB":
+        # Firebase RTDB: any non-error 200 response is accessible
+        # "null" means empty but accessible, "Permission Denied" means private
+        if "Permission Denied" in body or "permission_denied" in body.lower():
+            return False
+        return True  # Even "null" is a valid public response
+
+    elif provider_name == "Firebase Storage":
+        # Firebase Storage: check for items listing
+        if "error" in body.lower():
+            return False
+        try:
+            data = json.loads(body)
+            return "items" in data
+        except (json.JSONDecodeError, ValueError, TypeError):
+            # Non-JSON response — not a valid listing
+            return False
+
+    # Unknown provider — be conservative, don't assume public
+    return False
+
+
 async def _check_bucket(session, provider_name, url_template, bucket_name, semaphore):
     """
     Check a single bucket on a specific cloud provider.
@@ -57,26 +115,18 @@ async def _check_bucket(session, provider_name, url_template, bucket_name, semap
                 status = response.status
                 body = ""
 
-                # Read body for Firebase-specific detection
-                if provider_name.startswith("Firebase") and status == 200:
+                # Read body for ALL providers on 200 to verify public access
+                if status == 200:
                     try:
                         body = await response.text()
                     except Exception:
                         pass
 
                 if status == 200:
-                    # Firebase RTDB: "null" response means empty but accessible
-                    # Firebase RTDB: "Permission Denied" in body means private
-                    if provider_name == "Firebase RTDB":
-                        if "Permission Denied" in body or "permission_denied" in body.lower():
-                            return {
-                                "name": bucket_name,
-                                "provider": provider_name,
-                                "status": "PRIVATE",
-                                "url": url,
-                                "httpStatus": status,
-                            }, None
-                        # Even "null" means the DB is publicly accessible
+                    # Verify the body actually confirms public access
+                    is_public = _verify_public_body(provider_name, body)
+
+                    if is_public:
                         return {
                             "name": bucket_name,
                             "provider": provider_name,
@@ -84,26 +134,16 @@ async def _check_bucket(session, provider_name, url_template, bucket_name, semap
                             "url": url,
                             "httpStatus": status,
                         }, _make_bucket_alert(bucket_name, provider_name, url, "PUBLIC")
-
-                    # Firebase Storage: check if items listing is returned
-                    if provider_name == "Firebase Storage":
-                        if "error" in body.lower():
-                            return {
-                                "name": bucket_name,
-                                "provider": provider_name,
-                                "status": "PRIVATE",
-                                "url": url,
-                                "httpStatus": status,
-                            }, None
-
-                    # All other providers: 200 = publicly accessible
-                    return {
-                        "name": bucket_name,
-                        "provider": provider_name,
-                        "status": "PUBLIC",
-                        "url": url,
-                        "httpStatus": status,
-                    }, _make_bucket_alert(bucket_name, provider_name, url, "PUBLIC")
+                    else:
+                        # 200 but body doesn't confirm public listing
+                        # Could be a generic error page, parked page, or empty response
+                        return {
+                            "name": bucket_name,
+                            "provider": provider_name,
+                            "status": "UNVERIFIED",
+                            "url": url,
+                            "httpStatus": status,
+                        }, None  # No alert — not confirmed public
 
                 elif status == 403:
                     # Exists but access denied — informational
@@ -202,13 +242,20 @@ async def hunt_cloud_storage(session, target, semaphore, wordlist=None):
         bucket_info, alert = result
         if bucket_info:
             buckets_found.append(bucket_info)
-            status_icon = "🔴" if bucket_info["status"] == "PUBLIC" else "🟡"
+            if bucket_info["status"] == "PUBLIC":
+                status_icon = "🔴"
+            elif bucket_info["status"] == "UNVERIFIED":
+                status_icon = "⚪"
+            else:
+                status_icon = "🟡"
             print(f"  {status_icon} {bucket_info['provider']}: {bucket_info['name']} [{bucket_info['status']}]")
         if alert:
             alerts.append(alert)
 
     public_count = sum(1 for b in buckets_found if b["status"] == "PUBLIC")
     private_count = sum(1 for b in buckets_found if b["status"] == "PRIVATE")
-    print(f"\n  ✓ Buckets found: {len(buckets_found)} ({public_count} public, {private_count} private)")
+    unverified_count = sum(1 for b in buckets_found if b["status"] == "UNVERIFIED")
+    print(f"\n  ✓ Buckets found: {len(buckets_found)} "
+          f"({public_count} public, {private_count} private, {unverified_count} unverified)")
 
     return buckets_found, alerts
