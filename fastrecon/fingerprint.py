@@ -1,5 +1,10 @@
 """
 FastRecon Fingerprint — Technology and WAF detection from HTTP responses.
+
+Accuracy improvement: Requires 2+ independent signal types (body, header, meta)
+before surfacing medium/high-confidence detections. Single-signal matches are
+recorded at low confidence and excluded from the primary detection list.
+Confidence scores and levels are exposed in all output.
 """
 
 import re
@@ -11,13 +16,20 @@ def fingerprint_technologies(url, headers, body):
     """
     Detect technologies, frameworks, CDNs, and WAFs from HTTP response.
 
+    Requires at least 2 different signal categories (body, header, meta) to
+    report at medium/high confidence. Single-category detections are included
+    with confidence_level="low" for transparency.
+
     Args:
         url: Target URL
         headers: HTTP response headers dict
         body: HTTP response body string
 
     Returns:
-        List of detected technology dicts
+        List of detected technology dicts, each with:
+        - name, category, confidence (0-100), confidence_level (low/medium/high)
+        - signal_types: list of signal categories that matched
+        - evidence: list of matched evidence strings
     """
     detected = []
     headers_lower = {k.lower(): v.lower() for k, v in headers.items()} if headers else {}
@@ -26,6 +38,7 @@ def fingerprint_technologies(url, headers, body):
     for tech_name, signatures in TECH_SIGNATURES.items():
         confidence = 0
         evidence = []
+        signal_types = set()  # Track which categories contributed
 
         # Check body patterns
         body_patterns = signatures.get("body", [])
@@ -33,6 +46,7 @@ def fingerprint_technologies(url, headers, body):
             if pattern.lower() in body_lower:
                 confidence += 30
                 evidence.append(f"Body: '{pattern}'")
+                signal_types.add("body")
                 if confidence >= 60:
                     break
 
@@ -44,6 +58,7 @@ def fingerprint_technologies(url, headers, body):
                 if header_val == "" or header_val.lower() in actual_val:
                     confidence += 50
                     evidence.append(f"Header: {header_key}={actual_val[:50]}")
+                    signal_types.add("header")
 
         # Check meta generator tag
         meta_pattern = signatures.get("meta", "")
@@ -51,14 +66,43 @@ def fingerprint_technologies(url, headers, body):
             if re.search(meta_pattern, body, re.IGNORECASE):
                 confidence += 60
                 evidence.append(f"Meta: {meta_pattern}")
+                signal_types.add("meta")
 
-        # Must have at least 30% confidence
-        if confidence >= 30:
+        # Determine confidence level based on signal diversity
+        if confidence <= 0:
+            continue
+
+        num_signal_types = len(signal_types)
+
+        if num_signal_types >= 2 and confidence >= 50:
+            confidence_level = "high" if confidence >= 80 else "medium"
+        elif num_signal_types >= 2:
+            confidence_level = "medium"
+        else:
+            confidence_level = "low"
+
+        # Only include if confidence >= 50 (requires 2+ signal types normally)
+        # OR if it's a single strong signal (header at 50+, or meta at 60+)
+        # Single body-only matches (30%) are recorded as low confidence
+        if confidence >= 50:
             category = _categorize_tech(tech_name)
             detected.append({
                 "name": tech_name,
                 "category": category,
                 "confidence": min(confidence, 100),
+                "confidence_level": confidence_level,
+                "signal_types": sorted(signal_types),
+                "evidence": evidence,
+            })
+        elif confidence >= 30:
+            # Low confidence — include with "low" marker for transparency
+            category = _categorize_tech(tech_name)
+            detected.append({
+                "name": tech_name,
+                "category": category,
+                "confidence": min(confidence, 100),
+                "confidence_level": "low",
+                "signal_types": sorted(signal_types),
                 "evidence": evidence,
             })
 
@@ -100,23 +144,32 @@ def _categorize_tech(tech_name):
 def generate_tech_insights(technologies):
     """
     Generate security insights based on detected technologies.
+    Only considers medium/high confidence detections for insights.
     Returns list of insight/recommendation dicts.
     """
     insights = []
 
-    tech_names = [t["name"] for t in technologies]
+    # Only use medium/high confidence detections for insights
+    confident_tech_names = [
+        t["name"] for t in technologies
+        if t.get("confidence_level", "low") in ("medium", "high")
+    ]
 
     # WordPress specific
-    if "WordPress" in tech_names:
+    if "WordPress" in confident_tech_names:
         insights.append({
             "technology": "WordPress",
             "insight": "WordPress detected — check for known plugin vulnerabilities, exposed wp-json users endpoint, xmlrpc.php brute force, and wp-config.php backup files.",
             "risk": "MEDIUM",
         })
 
-    # No WAF detected
-    waf_names = [t["name"] for t in technologies if t["category"] in ("WAF / Security", "CDN")]
-    if not waf_names:
+    # No WAF detected (only from confident detections)
+    confident_waf_names = [
+        t["name"] for t in technologies
+        if t.get("confidence_level", "low") in ("medium", "high")
+        and t["category"] in ("WAF / Security", "CDN")
+    ]
+    if not confident_waf_names:
         insights.append({
             "technology": "None",
             "insight": "No WAF/CDN detected — the application may be directly exposed without DDoS protection or request filtering.",
@@ -124,7 +177,7 @@ def generate_tech_insights(technologies):
         })
 
     # Outdated tech warnings
-    if "jQuery" in tech_names:
+    if "jQuery" in confident_tech_names:
         insights.append({
             "technology": "jQuery",
             "insight": "jQuery detected — check the version for known XSS vulnerabilities (CVE-2020-11022, CVE-2020-11023).",
@@ -132,7 +185,7 @@ def generate_tech_insights(technologies):
         })
 
     # ASP.NET
-    if "ASP.NET" in tech_names:
+    if "ASP.NET" in confident_tech_names:
         insights.append({
             "technology": "ASP.NET",
             "insight": "ASP.NET detected — check for ViewState deserialization vulnerabilities and exposed Elmah error logs.",
@@ -140,14 +193,14 @@ def generate_tech_insights(technologies):
         })
 
     # Debug frameworks
-    if "Flask" in tech_names:
+    if "Flask" in confident_tech_names:
         insights.append({
             "technology": "Flask",
             "insight": "Flask/Werkzeug detected — check if debug mode is enabled (Werkzeug debugger allows RCE).",
             "risk": "HIGH",
         })
 
-    if "Spring Boot" in tech_names:
+    if "Spring Boot" in confident_tech_names:
         insights.append({
             "technology": "Spring Boot",
             "insight": "Spring Boot detected — check Actuator endpoints (/actuator/env, /actuator/heapdump) for information disclosure.",
@@ -176,11 +229,23 @@ async def run_fingerprinting(url, headers, body):
     technologies = fingerprint_technologies(url, headers, body)
     insights = generate_tech_insights(technologies)
 
-    # Print results
-    for tech in technologies:
-        confidence = tech["confidence"]
-        icon = "🟢" if confidence >= 70 else "🟡"
-        print(f"  {icon} {tech['name']} ({tech['category']}) — {confidence}% confidence")
+    # Print results, grouped by confidence level
+    high_medium = [t for t in technologies if t["confidence_level"] in ("medium", "high")]
+    low_conf = [t for t in technologies if t["confidence_level"] == "low"]
+
+    if high_medium:
+        print("  Confirmed detections:")
+        for tech in high_medium:
+            confidence = tech["confidence"]
+            level = tech["confidence_level"]
+            signals = ", ".join(tech["signal_types"])
+            icon = "🟢" if confidence >= 70 else "🟡"
+            print(f"    {icon} {tech['name']} ({tech['category']}) — {confidence}% [{level}] via {signals}")
+
+    if low_conf:
+        print("  Low confidence (single signal — not confirmed):")
+        for tech in low_conf:
+            print(f"    ⚪ {tech['name']} ({tech['category']}) — {tech['confidence']}% [low] via {', '.join(tech['signal_types'])}")
 
     if insights:
         print("\n  Security insights:")
@@ -188,6 +253,6 @@ async def run_fingerprinting(url, headers, body):
             risk_icon = {"HIGH": "🔴", "MEDIUM": "🟠", "LOW": "🟡"}.get(insight["risk"], "⚪")
             print(f"    {risk_icon} [{insight['technology']}] {insight['insight'][:80]}...")
 
-    print(f"\n  ✓ Fingerprinting complete: {len(technologies)} technologies, {len(insights)} insights")
+    print(f"\n  ✓ Fingerprinting complete: {len(high_medium)} confirmed, {len(low_conf)} low-confidence, {len(insights)} insights")
 
     return technologies, insights
