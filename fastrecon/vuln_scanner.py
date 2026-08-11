@@ -106,11 +106,9 @@ def _is_payload_in_executable_context(payload, body):
         if idx == -1:
             return False
 
-        # Get surrounding context (200 chars before and after)
+        # Get surrounding context (200 chars before the match)
         context_start = max(0, idx - 200)
-        context_end = min(len(body), idx + len(payload) + 200)
         before = body[context_start:idx].lower()
-        after = body[idx + len(payload):context_end].lower()
 
         # Check if inside a JSON response (Content-Type would be better, but check body structure)
         # JSON string: payload surrounded by quotes with backslash escaping

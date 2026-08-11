@@ -7,7 +7,6 @@ and only flags NXDOMAIN as dangling — not timeouts or transient errors.
 """
 
 import asyncio
-import secrets
 from datetime import datetime, timezone
 
 import dns.exception
