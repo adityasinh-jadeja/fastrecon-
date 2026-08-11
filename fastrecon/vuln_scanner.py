@@ -92,6 +92,13 @@ def _is_payload_in_executable_context(payload, body):
     if not body or not payload:
         return False
 
+    # Quick check: if the entire body is JSON, payloads inside it are not executable
+    stripped = body.strip()
+    if (stripped.startswith("{") and stripped.endswith("}")) or \
+       (stripped.startswith("[") and stripped.endswith("]")):
+        # Looks like a JSON response — payloads inside JSON strings are safe
+        return False
+
     # Find all occurrences of the payload
     idx = 0
     while True:
