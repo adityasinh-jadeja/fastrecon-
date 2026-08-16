@@ -7,6 +7,8 @@ dist/
 build/
 .eggs/
 *.egg
+.pytest_cache/
+.ruff_cache/
 
 # Virtual environments
 .env
