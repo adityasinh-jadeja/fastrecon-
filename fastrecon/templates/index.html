@@ -3,515 +3,389 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FastRecon — Security Scanner</title>
+    <title>FastRecon — Recon Console</title>
     <meta name="description" content="FastRecon automated reconnaissance and vulnerability scanning framework.">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        /* ── Reset & Base ── */
+        /* ══════════════════════════════════════════════
+           TOKENS
+           ══════════════════════════════════════════════ */
+        :root {
+            --void: #09090b;
+            --panel: #111318;
+            --panel-raised: #16181f;
+            --line: #23262e;
+            --line-soft: #1a1c23;
+            --text: #e8e6e0;
+            --text-dim: #94969e;
+            --text-faint: #54565f;
+            --amber: #ffb454;
+            --amber-soft: rgba(255, 180, 84, 0.1);
+            --cyan: #55d6c2;
+            --red: #ff5c5c;
+            --orange: #ff9142;
+            --yellow: #ffd166;
+            --green: #4ade80;
+            --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+            --sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: #111318;
-            color: #c9cdd4;
+            font-family: var(--sans);
+            background:
+                radial-gradient(ellipse 900px 500px at 15% -10%, rgba(255,180,84,0.05), transparent),
+                var(--void);
+            color: var(--text-dim);
             min-height: 100vh;
             font-size: 14px;
             line-height: 1.5;
         }
+        code, .mono { font-family: var(--mono); }
 
-        /* ── Layout ── */
+        /* ══════════════════════════════════════════════
+           LAYOUT SHELL
+           ══════════════════════════════════════════════ */
         .app { display: flex; flex-direction: column; min-height: 100vh; }
 
-        .topbar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 24px;
-            height: 48px;
-            background: #17191f;
-            border-bottom: 1px solid #232630;
+        .scan-line {
+            position: fixed; top: 0; left: 0; right: 0; height: 2px; z-index: 200;
+            background: linear-gradient(90deg, transparent 0%, var(--amber) 50%, transparent 100%);
+            opacity: 0; pointer-events: none;
+        }
+        .scan-line.active { opacity: 1; animation: scan-slide 1.6s ease-in-out infinite; }
+        @keyframes scan-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+
+        /* ── Console Header ── */
+        .console-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 22px; height: 52px;
+            background: var(--panel);
+            border-bottom: 1px solid var(--line);
             flex-shrink: 0;
         }
-        .topbar-brand {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-weight: 700;
-            font-size: 15px;
-            color: #e4e7ec;
-            letter-spacing: -0.3px;
+        .brand { display: flex; align-items: center; gap: 10px; }
+        .brand-glyph {
+            width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+            border: 1px solid var(--amber); border-radius: 6px; color: var(--amber); flex-shrink: 0;
         }
-        .topbar-brand .bolt {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 24px;
-            height: 24px;
-            background: #3b82f6;
-            border-radius: 6px;
-            color: #fff;
-            font-size: 13px;
-            font-weight: 700;
+        .brand-glyph svg { width: 15px; height: 15px; }
+        .brand-name {
+            font-family: var(--mono); font-weight: 700; font-size: 14px; letter-spacing: 1.5px;
+            color: var(--text); text-transform: uppercase;
         }
-        .topbar-version {
-            font-size: 11px;
-            color: #555b67;
-            font-weight: 400;
+        .brand-version {
+            font-family: var(--mono); font-size: 10px; color: var(--text-faint);
+            border: 1px solid var(--line); border-radius: 4px; padding: 2px 6px; margin-left: 2px;
         }
+        .header-status {
+            display: flex; align-items: center; gap: 7px;
+            font-family: var(--mono); font-size: 11px; color: var(--text-faint); letter-spacing: 0.5px;
+        }
+        .status-dot {
+            width: 6px; height: 6px; border-radius: 50%; background: var(--cyan);
+            box-shadow: 0 0 6px var(--cyan); animation: pulse-dot 2s ease-in-out infinite;
+        }
+        @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 
-        .main-area {
-            display: flex;
-            flex: 1;
-            overflow: hidden;
+        /* ── Telemetry Strip ── */
+        .telemetry-strip {
+            display: flex; align-items: stretch;
+            background: var(--panel-raised);
+            border-bottom: 1px solid var(--line);
+            padding: 0 22px; flex-shrink: 0; overflow-x: auto;
         }
+        .tele-cell { display: flex; flex-direction: column; justify-content: center; padding: 9px 22px 9px 0; white-space: nowrap; }
+        .tele-cell:not(:first-child) { padding-left: 22px; }
+        .tele-value { font-family: var(--mono); font-size: 17px; font-weight: 700; color: var(--text); line-height: 1.15; }
+        .tele-cell.critical .tele-value { color: var(--red); }
+        .tele-label { font-size: 10px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.6px; margin-top: 1px; }
+        .tele-sep { width: 1px; background: var(--line); flex-shrink: 0; }
+
+        .main-area { display: flex; flex: 1; overflow: hidden; }
 
         /* ── Sidebar ── */
         .sidebar {
-            width: 200px;
-            background: #14161b;
-            border-right: 1px solid #232630;
-            padding: 12px 0;
-            flex-shrink: 0;
-            display: flex;
-            flex-direction: column;
+            width: 190px; background: var(--panel); border-right: 1px solid var(--line);
+            padding: 14px 0; flex-shrink: 0; display: flex; flex-direction: column;
         }
         .nav-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 9px 20px;
-            font-size: 13px;
-            font-weight: 500;
-            color: #7a8290;
-            cursor: pointer;
-            transition: color 0.15s, background 0.15s;
-            border-left: 2px solid transparent;
-            user-select: none;
+            display: flex; align-items: center; gap: 10px; padding: 10px 20px;
+            font-size: 12.5px; font-weight: 600; color: var(--text-faint); cursor: pointer;
+            transition: color 0.15s, background 0.15s; border-left: 2px solid transparent;
+            user-select: none; text-transform: uppercase; letter-spacing: 0.4px;
         }
-        .nav-item:hover {
-            color: #c9cdd4;
-            background: rgba(255,255,255,0.03);
-        }
-        .nav-item.active {
-            color: #e4e7ec;
-            background: rgba(59,130,246,0.08);
-            border-left-color: #3b82f6;
-        }
-        .nav-item svg {
-            width: 16px;
-            height: 16px;
-            flex-shrink: 0;
-            opacity: 0.6;
-        }
+        .nav-item:hover { color: var(--text-dim); background: rgba(255,255,255,0.02); }
+        .nav-item.active { color: var(--amber); background: var(--amber-soft); border-left-color: var(--amber); }
+        .nav-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: 0.65; }
         .nav-item.active svg { opacity: 1; }
         .sidebar-spacer { flex: 1; }
+        .sidebar-foot {
+            padding: 10px 20px 2px; font-family: var(--mono); font-size: 10px;
+            color: var(--text-faint); border-top: 1px solid var(--line-soft); line-height: 1.6;
+        }
+
+        /* ── Mobile Nav ── */
+        .mobile-nav { display: none; }
+        .mobile-nav-item {
+            flex: 1; text-align: center; padding: 11px 8px; font-size: 11px; font-weight: 700;
+            color: var(--text-faint); cursor: pointer; border-bottom: 2px solid transparent;
+            white-space: nowrap; text-transform: uppercase; letter-spacing: 0.4px; font-family: var(--mono);
+        }
+        .mobile-nav-item.active { color: var(--amber); border-bottom-color: var(--amber); }
 
         /* ── Content ── */
-        .content {
-            flex: 1;
-            overflow-y: auto;
-            padding: 28px 32px;
-        }
-
-        /* ── Section Headers ── */
-        .page-header {
-            margin-bottom: 24px;
-        }
+        .content { flex: 1; overflow-y: auto; padding: 26px 30px 60px; }
+        .page-header { margin-bottom: 20px; }
         .page-title {
-            font-size: 18px;
-            font-weight: 700;
-            color: #e4e7ec;
-            margin-bottom: 4px;
+            font-family: var(--mono); font-size: 17px; font-weight: 700; color: var(--text);
+            margin-bottom: 4px; letter-spacing: -0.2px;
         }
-        .page-subtitle {
-            font-size: 13px;
-            color: #555b67;
-        }
+        .page-title .prompt-glyph { color: var(--amber); margin-right: 2px; }
+        .page-subtitle { font-size: 12.5px; color: var(--text-faint); }
 
-        /* ── Cards ── */
-        .card {
-            background: #17191f;
-            border: 1px solid #232630;
-            border-radius: 10px;
-            margin-bottom: 16px;
-        }
+        /* ── Panels ── */
+        .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 16px; }
         .card-body { padding: 20px; }
         .card-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 14px 20px;
-            border-bottom: 1px solid #232630;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 13px 20px; border-bottom: 1px solid var(--line);
         }
         .card-title {
-            font-size: 13px;
-            font-weight: 600;
-            color: #c9cdd4;
+            font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--cyan); letter-spacing: 0.2px;
         }
 
-        /* ── Scan Form ── */
-        .scan-form { display: flex; gap: 10px; margin-bottom: 16px; }
-        .input-field {
-            flex: 1;
-            background: #111318;
-            border: 1px solid #2a2d36;
-            border-radius: 8px;
-            padding: 10px 14px;
-            font-size: 14px;
-            color: #e4e7ec;
-            font-family: inherit;
-            outline: none;
-            transition: border-color 0.2s;
+        /* ── Prompt Input ── */
+        .scan-form { display: flex; gap: 10px; margin-bottom: 18px; }
+        .prompt-input {
+            flex: 1; display: flex; align-items: center; gap: 8px;
+            background: var(--void); border: 1px solid var(--line); border-radius: 8px; padding: 0 14px;
+            transition: border-color 0.15s;
         }
-        .input-field:focus { border-color: #3b82f6; }
-        .input-field::placeholder { color: #464c58; }
+        .prompt-input:focus-within { border-color: var(--amber); }
+        .prompt-glyph { color: var(--amber); font-family: var(--mono); font-size: 13px; flex-shrink: 0; }
+        .input-field {
+            flex: 1; background: transparent; border: none; padding: 10px 0; font-size: 14px;
+            color: var(--text); font-family: var(--mono); outline: none;
+        }
+        .input-field::placeholder { color: var(--text-faint); }
+
+        input.input-field, select.input-field {
+            background: var(--void); border: 1px solid var(--line); border-radius: 8px;
+            padding: 10px 14px; color: var(--text); font-family: var(--mono); font-size: 13px;
+            outline: none; transition: border-color 0.2s;
+        }
+        input.input-field:focus { border-color: var(--amber); }
 
         .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 9px 18px;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 600;
-            font-family: inherit;
-            cursor: pointer;
-            border: none;
-            transition: background 0.15s, box-shadow 0.15s, opacity 0.15s;
-            white-space: nowrap;
-            text-decoration: none;
-            color: inherit;
+            display: inline-flex; align-items: center; gap: 6px; padding: 10px 18px; border-radius: 8px;
+            font-size: 12.5px; font-weight: 700; font-family: var(--mono); cursor: pointer; border: none;
+            transition: background 0.15s, opacity 0.15s, border-color 0.15s; white-space: nowrap;
+            text-decoration: none; color: inherit; text-transform: uppercase; letter-spacing: 0.4px;
         }
-        .btn-primary {
-            background: #3b82f6;
-            color: #fff;
-        }
-        .btn-primary:hover { background: #2563eb; }
-        .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+        .btn-primary { background: var(--amber); color: #1a1305; }
+        .btn-primary:hover { background: #ffc274; }
+        .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--line); }
+        .btn-ghost:hover { background: rgba(255,255,255,0.04); color: var(--text); border-color: #34373f; }
+        .btn-danger { background: transparent; color: var(--red); border: 1px solid rgba(255,92,92,0.25); }
+        .btn-danger:hover { background: rgba(255,92,92,0.08); }
+        .btn-sm { padding: 6px 12px; font-size: 11px; }
 
-        .btn-ghost {
-            background: transparent;
-            color: #7a8290;
-            border: 1px solid #2a2d36;
-        }
-        .btn-ghost:hover { background: rgba(255,255,255,0.04); color: #c9cdd4; }
-
-        .btn-danger {
-            background: transparent;
-            color: #ef4444;
-            border: 1px solid rgba(239,68,68,0.2);
-        }
-        .btn-danger:hover { background: rgba(239,68,68,0.08); }
-
-        .btn-sm { padding: 6px 12px; font-size: 12px; }
-
-        /* ── Scan Options ── */
-        .options-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px;
-        }
+        /* ── Options grid ── */
+        .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
         .option-group label {
-            display: block;
-            font-size: 11px;
-            font-weight: 600;
-            color: #555b67;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 6px;
+            display: block; font-size: 10.5px; font-weight: 700; color: var(--text-faint);
+            text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 8px; font-family: var(--mono);
         }
-        select.input-field {
-            width: 100%;
-            cursor: pointer;
-            appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23555b67'%3E%3Cpath d='M6 8.825L1.175 4 2.238 2.938 6 6.7 9.763 2.937 10.825 4z'/%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 12px center;
-            padding-right: 32px;
+
+        /* ── Mode select ── */
+        .mode-select { display: flex; gap: 8px; }
+        .mode-option {
+            flex: 1; background: var(--void); border: 1px solid var(--line); border-radius: 8px;
+            padding: 9px 10px; cursor: pointer; text-align: left; transition: border-color 0.15s, background 0.15s;
+            font-family: var(--sans);
         }
-        .checkbox-group {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            padding-top: 4px;
+        .mode-option:hover { border-color: #34373f; }
+        .mode-option.active { border-color: var(--amber); background: var(--amber-soft); }
+        .mode-bars { display: flex; gap: 2px; align-items: flex-end; height: 10px; margin-bottom: 5px; }
+        .mode-bars i { display: block; width: 3px; background: var(--line); border-radius: 1px; }
+        .mode-bars i:nth-child(1) { height: 4px; }
+        .mode-bars i:nth-child(2) { height: 7px; }
+        .mode-bars i:nth-child(3) { height: 10px; }
+        .mode-option.active .mode-bars i { background: var(--amber); }
+        .mode-option-label { font-size: 12px; font-weight: 700; color: var(--text); text-transform: uppercase; letter-spacing: 0.3px; }
+        .mode-option.active .mode-option-label { color: var(--amber); }
+        .mode-option-sub { font-size: 10.5px; color: var(--text-faint); margin-top: 1px; }
+
+        /* ── Chips (skip phases) ── */
+        .checkbox-group { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 2px; }
+        .chip { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; position: relative; }
+        .chip-input { position: absolute; opacity: 0; width: 0; height: 0; }
+        .chip-box {
+            padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--void);
+            font-size: 11.5px; font-weight: 600; color: var(--text-faint); transition: all 0.15s;
+            font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.3px;
         }
-        .checkbox-label {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 13px;
-            color: #7a8290;
-            cursor: pointer;
-            user-select: none;
-        }
-        .checkbox-label input[type="checkbox"] {
-            width: 14px;
-            height: 14px;
-            accent-color: #3b82f6;
-            cursor: pointer;
-        }
+        .chip-input:checked + .chip-box { border-color: var(--red); background: rgba(255,92,92,0.08); color: var(--red); }
+        .chip-input:focus-visible + .chip-box { outline: 2px solid var(--amber); outline-offset: 1px; }
 
         /* ── Progress ── */
         .progress-card { display: none; }
         .progress-card.active { display: block; }
-        .progress-top {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-        .progress-title { font-size: 14px; font-weight: 600; color: #e4e7ec; }
-        .progress-phase { font-size: 12px; color: #3b82f6; font-weight: 500; }
-        .progress-track {
-            width: 100%;
-            height: 4px;
-            background: #232630;
-            border-radius: 2px;
-            overflow: hidden;
-            margin-bottom: 12px;
-        }
+        .progress-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .progress-title { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--text); }
+        .progress-title span { color: var(--amber); }
+        .progress-phase { font-family: var(--mono); font-size: 11px; color: var(--amber); font-weight: 500; }
+        .progress-track { width: 100%; height: 5px; background: var(--void); border-radius: 3px; overflow: hidden; margin-bottom: 14px; border: 1px solid var(--line); }
         .progress-fill {
-            height: 100%;
-            background: #3b82f6;
-            border-radius: 2px;
-            transition: width 0.4s ease;
-            width: 0%;
+            height: 100%; border-radius: 3px; width: 0%; transition: width 0.4s ease;
+            background: linear-gradient(90deg, #d98a2e, var(--amber));
+            box-shadow: 0 0 8px rgba(255,180,84,0.5);
         }
         .log-box {
-            max-height: 160px;
-            overflow-y: auto;
-            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
-            font-size: 12px;
-            color: #555b67;
-            background: #111318;
-            border: 1px solid #232630;
-            border-radius: 6px;
-            padding: 10px 12px;
+            max-height: 170px; overflow-y: auto; font-family: var(--mono); font-size: 11.5px;
+            color: var(--text-faint); background: var(--void); border: 1px solid var(--line); border-radius: 8px;
+            padding: 12px 14px;
         }
-        .log-entry { padding: 1px 0; }
-        .log-entry.phase { color: #3b82f6; }
-        .log-entry.error { color: #ef4444; }
-        .log-entry.complete { color: #22c55e; }
+        .log-entry { padding: 2px 0; }
+        .log-entry::before { content: "› "; color: var(--text-faint); }
+        .log-entry.phase { color: var(--cyan); }
+        .log-entry.error { color: var(--red); }
+        .log-entry.complete { color: var(--green); }
 
-        /* ── Scan Line (top bar animation) ── */
-        .scan-bar {
-            position: fixed; top: 0; left: 0; right: 0;
-            height: 2px; z-index: 100;
-            background: linear-gradient(90deg, transparent 0%, #3b82f6 50%, transparent 100%);
-            opacity: 0;
-            animation: none;
-            pointer-events: none;
+        /* ── Stop Button ── */
+        .btn-stop {
+            background: transparent; color: var(--red); border: 1px solid rgba(255,92,92,0.35);
+            font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.4px;
         }
-        .scan-bar.active {
-            opacity: 1;
-            animation: scan-slide 1.8s ease-in-out infinite;
-        }
-        @keyframes scan-slide {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(100%); }
-        }
+        .btn-stop:hover { background: rgba(255,92,92,0.1); border-color: var(--red); }
 
         /* ── Results ── */
         .results-card { display: none; }
         .results-card.active { display: block; }
-        .result-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 16px;
-        }
-        .result-title {
-            font-size: 15px;
-            font-weight: 600;
-            color: #22c55e;
-        }
-        .result-target { font-size: 12px; color: #555b67; margin-top: 2px; }
-        .risk-badge {
-            display: inline-block;
-            padding: 5px 14px;
-            border-radius: 6px;
-            font-size: 12px;
-            font-weight: 700;
-            color: #fff;
-            letter-spacing: 0.3px;
-        }
+        .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; gap: 16px; }
+        .result-title { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--green); }
+        .result-title::before { content: "✓ "; }
+        .result-target { font-family: var(--mono); font-size: 12px; color: var(--text-faint); margin-top: 3px; }
 
-        .stat-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
-            gap: 8px;
-            margin-bottom: 16px;
+        .gauge-wrap { position: relative; width: 84px; height: 84px; flex-shrink: 0; }
+        .gauge-svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+        .gauge-track { fill: none; stroke: var(--line); stroke-width: 8; }
+        .gauge-fill { fill: none; stroke-width: 8; stroke-linecap: round; transition: stroke-dashoffset 0.7s ease; }
+        .gauge-center {
+            position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
         }
+        .gauge-score { font-family: var(--mono); font-size: 19px; font-weight: 800; color: var(--text); line-height: 1; }
+        .gauge-level { font-size: 8.5px; font-weight: 700; letter-spacing: 0.4px; margin-top: 2px; text-transform: uppercase; }
+
+        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 8px; margin-bottom: 18px; }
         .stat-cell {
-            text-align: center;
-            padding: 10px 6px;
-            background: #111318;
-            border: 1px solid #232630;
-            border-radius: 8px;
+            text-align: center; padding: 11px 6px 9px; background: var(--void); border: 1px solid var(--line);
+            border-radius: 8px; border-top: 2px solid var(--stat-color, var(--line));
         }
-        .stat-value {
-            font-size: 20px;
-            font-weight: 700;
-            line-height: 1.2;
-        }
-        .stat-label {
-            font-size: 10px;
-            font-weight: 600;
-            color: #555b67;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-top: 2px;
-        }
+        .stat-value { font-family: var(--mono); font-size: 19px; font-weight: 700; line-height: 1.2; color: var(--stat-color, var(--text)); }
+        .stat-label { font-size: 9.5px; font-weight: 600; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 3px; }
 
-        .action-row {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
+        .action-row { display: flex; gap: 8px; flex-wrap: wrap; }
 
-        /* ── List Items (targets, history) ── */
-        .list-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 0;
-            border-bottom: 1px solid #1e2028;
-        }
+        /* ── List items ── */
+        .list-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 2px; border-bottom: 1px solid var(--line-soft); gap: 12px; }
         .list-item:last-child { border-bottom: none; }
-        .list-primary { font-size: 14px; font-weight: 500; color: #e4e7ec; }
-        .list-secondary { font-size: 12px; color: #555b67; margin-top: 1px; }
+        .list-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+        .status-orb { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: var(--text-faint); }
+        .status-orb.live { background: var(--green); box-shadow: 0 0 5px rgba(74,222,128,0.6); }
+        .status-orb.dead { background: var(--red); }
+        .list-primary { font-family: var(--mono); font-size: 13.5px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .list-secondary { font-size: 11.5px; color: var(--text-faint); margin-top: 2px; }
         .list-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
-
-        .risk-text { font-size: 12px; font-weight: 600; }
-
-        /* ── Purge ── */
-        .purge-bar {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            padding: 12px 16px;
-            background: rgba(239,68,68,0.04);
-            border: 1px solid rgba(239,68,68,0.12);
-            border-radius: 8px;
-            margin-top: 16px;
+        .risk-text { font-family: var(--mono); font-size: 11px; font-weight: 700; }
+        .mode-tag {
+            font-family: var(--mono); font-size: 10px; color: var(--text-faint); border: 1px solid var(--line);
+            border-radius: 4px; padding: 1px 6px; text-transform: uppercase;
         }
-        .purge-bar span { font-size: 13px; color: #7a8290; }
-        .purge-bar input[type="number"] {
-            width: 56px;
-            background: #111318;
-            border: 1px solid #2a2d36;
-            border-radius: 6px;
-            padding: 5px 8px;
-            color: #e4e7ec;
-            font-size: 13px;
-            text-align: center;
-            font-family: inherit;
+
+        /* ── Danger zone ── */
+        .danger-zone {
+            display: flex; gap: 10px; align-items: center; padding: 14px 16px;
+            background: rgba(255,92,92,0.04); border: 1px solid rgba(255,92,92,0.15); border-radius: 8px; margin-top: 18px; flex-wrap: wrap;
+        }
+        .danger-zone span { font-size: 12px; color: var(--text-dim); }
+        .danger-zone input[type="number"] {
+            width: 58px; background: var(--void); border: 1px solid var(--line); border-radius: 6px;
+            padding: 6px 8px; color: var(--text); font-size: 12.5px; text-align: center; font-family: var(--mono);
         }
 
         /* ── Table ── */
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13px;
-        }
+        .data-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
         .data-table th {
-            text-align: left;
-            padding: 8px 10px;
-            font-size: 11px;
-            font-weight: 600;
-            color: #555b67;
-            text-transform: uppercase;
-            letter-spacing: 0.4px;
-            border-bottom: 1px solid #232630;
-            background: rgba(0,0,0,0.15);
+            text-align: left; padding: 9px 10px; font-size: 10.5px; font-weight: 700; color: var(--text-faint);
+            text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--line);
+            background: rgba(255,255,255,0.015); font-family: var(--mono);
         }
-        .data-table td {
-            padding: 7px 10px;
-            border-bottom: 1px solid #1e2028;
-            color: #c9cdd4;
-        }
-        .data-table tr:hover td { background: rgba(255,255,255,0.02); }
-        .data-table input[type="checkbox"] { accent-color: #3b82f6; }
-        .status-live { color: #22c55e; font-weight: 600; }
-        .status-dead { color: #ef4444; font-weight: 500; }
+        .data-table td { padding: 8px 10px; border-bottom: 1px solid var(--line-soft); color: var(--text-dim); font-family: var(--mono); }
+        .data-table tr:hover td { background: rgba(255,255,255,0.015); }
+        .data-table input[type="checkbox"] { accent-color: var(--amber); }
+        .status-live { color: var(--green); font-weight: 700; }
+        .status-dead { color: var(--red); font-weight: 600; }
 
-        .search-row {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 12px;
-        }
-        .search-row select.input-field { flex: 0 0 200px; }
+        .search-row { display: flex; gap: 8px; margin-bottom: 14px; }
+        .search-row select.input-field { flex: 0 0 210px; }
 
-        /* ── Empty State ── */
-        .empty {
-            text-align: center;
-            padding: 32px 16px;
-            color: #464c58;
-            font-size: 13px;
-        }
+        .empty { text-align: center; padding: 34px 16px; color: var(--text-faint); font-size: 12.5px; font-family: var(--mono); }
+        .empty::before { content: "// "; }
+        .sub-info { text-align: right; font-size: 10.5px; color: var(--text-faint); margin-top: 9px; font-family: var(--mono); }
 
-        .sub-info {
-            text-align: right;
-            font-size: 11px;
-            color: #464c58;
-            margin-top: 8px;
-        }
-
-        /* ── Tab Content Visibility ── */
         .tab-pane { display: none; }
         .tab-pane.active { display: block; }
 
-        /* ── Scrollbar ── */
-        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #2a2d36; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #3a3e49; }
+        ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #34373f; }
 
-        /* ── Responsive ── */
         @media (max-width: 768px) {
             .sidebar { display: none; }
-            .topbar { padding: 0 16px; }
-            .content { padding: 20px 16px; }
+            .console-header { padding: 0 16px; }
+            .content { padding: 20px 16px 50px; }
             .scan-form { flex-direction: column; }
             .options-grid { grid-template-columns: 1fr; }
-            .mobile-nav {
-                display: flex !important;
-                gap: 0;
-                background: #14161b;
-                border-bottom: 1px solid #232630;
-                overflow-x: auto;
-            }
-            .mobile-nav-item {
-                flex: 1;
-                text-align: center;
-                padding: 10px 8px;
-                font-size: 12px;
-                font-weight: 600;
-                color: #555b67;
-                cursor: pointer;
-                border-bottom: 2px solid transparent;
-                white-space: nowrap;
-            }
-            .mobile-nav-item.active {
-                color: #3b82f6;
-                border-bottom-color: #3b82f6;
-            }
+            .mode-select { flex-wrap: wrap; }
+            .mode-option { min-width: 45%; }
+            .telemetry-strip { padding: 0 16px; }
+            .tele-cell { padding: 8px 16px 8px 0; }
+            .tele-cell:not(:first-child) { padding-left: 16px; }
+            .mobile-nav { display: flex !important; gap: 0; background: var(--panel); border-bottom: 1px solid var(--line); overflow-x: auto; }
         }
-        @media (min-width: 769px) {
-            .mobile-nav { display: none !important; }
-        }
+        @media (min-width: 769px) { .mobile-nav { display: none !important; } }
     </style>
 </head>
 <body>
-    <div class="scan-bar" id="scanBar"></div>
+    <div class="scan-line" id="scanBar"></div>
 
     <div class="app">
-        <!-- Top Bar -->
-        <div class="topbar">
-            <div class="topbar-brand">
-                <span class="bolt">⚡</span>
-                FastRecon
-                <span class="topbar-version">v{{ version }}</span>
+        <!-- Console Header -->
+        <div class="console-header">
+            <div class="brand">
+                <span class="brand-glyph">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>
+                </span>
+                <span class="brand-name">FastRecon</span>
+                <span class="brand-version">v{{ version }}</span>
             </div>
+            <div class="header-status"><span class="status-dot"></span>SESSION ACTIVE</div>
+        </div>
+
+        <!-- Telemetry Strip -->
+        <div class="telemetry-strip">
+            <div class="tele-cell"><div class="tele-value" id="statTotalScans">—</div><div class="tele-label">Scans Run</div></div>
+            <div class="tele-sep"></div>
+            <div class="tele-cell"><div class="tele-value" id="statUniqueTargets">—</div><div class="tele-label">Targets Tracked</div></div>
+            <div class="tele-sep"></div>
+            <div class="tele-cell"><div class="tele-value" id="statTotalSubdomains">—</div><div class="tele-label">Subdomains Indexed</div></div>
+            <div class="tele-sep"></div>
+            <div class="tele-cell critical"><div class="tele-value" id="statCriticalAlerts">—</div><div class="tele-label">Critical Alerts</div></div>
         </div>
 
         <!-- Mobile Nav -->
@@ -542,6 +416,7 @@
                     Subdomains
                 </div>
                 <div class="sidebar-spacer"></div>
+                <div class="sidebar-foot">10 phases<br>sqlite state tracking</div>
             </div>
 
             <!-- Content Area -->
@@ -550,32 +425,53 @@
                 <!-- ═══ TAB: SCAN ═══ -->
                 <div class="tab-pane active" id="tab-scan">
                     <div class="page-header">
-                        <div class="page-title">New Scan</div>
-                        <div class="page-subtitle">Enter a target domain to start reconnaissance</div>
+                        <div class="page-title"><span class="prompt-glyph">$</span>fastrecon --scan</div>
+                        <div class="page-subtitle">Point it at a domain — discovery, ports, vulns and cloud assets run in one pass.</div>
                     </div>
 
                     <div class="card">
+                        <div class="card-header"><div class="card-title">// scan_configuration</div></div>
                         <div class="card-body">
                             <div class="scan-form">
-                                <input type="text" class="input-field" id="targetInput" placeholder="example.com" autocomplete="off">
+                                <div class="prompt-input">
+                                    <span class="prompt-glyph">➜</span>
+                                    <input type="text" class="input-field" id="targetInput" placeholder="example.com" autocomplete="off">
+                                </div>
                                 <button class="btn btn-primary" id="scanBtn" onclick="startScan()">Start Scan</button>
                             </div>
                             <div class="options-grid">
                                 <div class="option-group">
                                     <label>Scan Mode</label>
-                                    <select class="input-field" id="scanMode">
-                                        <option value="light">Light — Quick passive recon</option>
-                                        <option value="normal" selected>Normal — Balanced scan</option>
-                                        <option value="aggressive">Aggressive — Deep scan</option>
+                                    <div class="mode-select" id="modeSelect">
+                                        <button type="button" class="mode-option" data-mode="light" onclick="selectMode('light', this)">
+                                            <div class="mode-bars"><i></i><i></i><i></i></div>
+                                            <div class="mode-option-label">Light</div>
+                                            <div class="mode-option-sub">top20 ports · no vuln tests</div>
+                                        </button>
+                                        <button type="button" class="mode-option active" data-mode="normal" onclick="selectMode('normal', this)">
+                                            <div class="mode-bars"><i></i><i></i><i></i></div>
+                                            <div class="mode-option-label">Normal</div>
+                                            <div class="mode-option-sub">top100 ports · basic vulns</div>
+                                        </button>
+                                        <button type="button" class="mode-option" data-mode="aggressive" onclick="selectMode('aggressive', this)">
+                                            <div class="mode-bars"><i></i><i></i><i></i></div>
+                                            <div class="mode-option-label">Aggressive</div>
+                                            <div class="mode-option-sub">top1000 ports · full payloads</div>
+                                        </button>
+                                    </div>
+                                    <select id="scanMode" style="display:none">
+                                        <option value="light">light</option>
+                                        <option value="normal" selected>normal</option>
+                                        <option value="aggressive">aggressive</option>
                                     </select>
                                 </div>
                                 <div class="option-group">
                                     <label>Skip Phases</label>
                                     <div class="checkbox-group">
-                                        <label class="checkbox-label"><input type="checkbox" id="skipPorts"> Ports</label>
-                                        <label class="checkbox-label"><input type="checkbox" id="skipVulns"> Vulns</label>
-                                        <label class="checkbox-label"><input type="checkbox" id="skipCloud"> Cloud</label>
-                                        <label class="checkbox-label"><input type="checkbox" id="skipEndpoints"> Endpoints</label>
+                                        <label class="chip"><input type="checkbox" class="chip-input" id="skipPorts"><span class="chip-box">Ports</span></label>
+                                        <label class="chip"><input type="checkbox" class="chip-input" id="skipVulns"><span class="chip-box">Vulns</span></label>
+                                        <label class="chip"><input type="checkbox" class="chip-input" id="skipCloud"><span class="chip-box">Cloud</span></label>
+                                        <label class="chip"><input type="checkbox" class="chip-input" id="skipEndpoints"><span class="chip-box">Endpoints</span></label>
                                     </div>
                                 </div>
                             </div>
@@ -587,11 +483,12 @@
                         <div class="card-body">
                             <div class="progress-top">
                                 <div class="progress-title">Scanning <span id="progressTarget"></span></div>
-                                <div class="progress-phase" id="progressPhase">Initializing…</div>
+                                <div style="display:flex;align-items:center;gap:10px;">
+                                    <div class="progress-phase" id="progressPhase">Initializing…</div>
+                                    <button class="btn btn-stop btn-sm" id="stopBtn" onclick="stopScan()">■ Abort</button>
+                                </div>
                             </div>
-                            <div class="progress-track">
-                                <div class="progress-fill" id="progressBar"></div>
-                            </div>
+                            <div class="progress-track"><div class="progress-fill" id="progressBar"></div></div>
                             <div class="log-box" id="progressLog"></div>
                         </div>
                     </div>
@@ -604,7 +501,7 @@
                                     <div class="result-title">Scan Complete</div>
                                     <div class="result-target" id="resultTarget"></div>
                                 </div>
-                                <div class="risk-badge" id="riskBadge"></div>
+                                <div class="gauge-wrap" id="riskBadge"></div>
                             </div>
                             <div class="stat-grid" id="resultStats"></div>
                             <div class="action-row">
@@ -620,22 +517,27 @@
                 <!-- ═══ TAB: TARGETS ═══ -->
                 <div class="tab-pane" id="tab-targets">
                     <div class="page-header">
-                        <div class="page-title">Targets</div>
-                        <div class="page-subtitle">Manage your saved target domains</div>
+                        <div class="page-title"><span class="prompt-glyph">$</span>fastrecon --targets</div>
+                        <div class="page-subtitle">Domains you're tracking across scans.</div>
                     </div>
 
                     <div class="card">
                         <div class="card-body">
                             <div class="scan-form" style="margin-bottom:0;">
-                                <input type="text" class="input-field" id="newTargetInput" placeholder="Add a target domain…">
+                                <div class="prompt-input" style="flex:1.4;">
+                                    <span class="prompt-glyph">+</span>
+                                    <input type="text" class="input-field" id="newTargetInput" placeholder="Add a target domain…">
+                                </div>
+                                <input type="text" class="input-field" id="newTargetNotes" placeholder="Notes (optional)" style="flex:1;">
                                 <button class="btn btn-primary" onclick="addTarget()">Add</button>
                             </div>
                         </div>
                     </div>
 
                     <div class="card">
+                        <div class="card-header"><div class="card-title">// saved_targets[]</div></div>
                         <div class="card-body" id="targetsList">
-                            <div class="empty">No saved targets yet.</div>
+                            <div class="empty">no saved targets yet. add one above.</div>
                         </div>
                     </div>
                 </div>
@@ -643,20 +545,20 @@
                 <!-- ═══ TAB: HISTORY ═══ -->
                 <div class="tab-pane" id="tab-history">
                     <div class="page-header">
-                        <div class="page-title">Scan History</div>
-                        <div class="page-subtitle">Browse and manage past scan results</div>
+                        <div class="page-title"><span class="prompt-glyph">$</span>fastrecon --history</div>
+                        <div class="page-subtitle">Every scan this instance has run, newest first.</div>
                     </div>
 
                     <div class="card">
                         <div class="card-header">
-                            <div class="card-title">All Scans</div>
+                            <div class="card-title">// scan_history.log</div>
                             <button class="btn btn-ghost btn-sm" onclick="loadHistory()">Refresh</button>
                         </div>
                         <div class="card-body">
                             <div id="historyList">
-                                <div class="empty">No scans yet. Run your first scan.</div>
+                                <div class="empty">no scans yet. run your first scan.</div>
                             </div>
-                            <div class="purge-bar">
+                            <div class="danger-zone">
                                 <span>Purge scans older than</span>
                                 <input type="number" id="purgeDays" value="30" min="1">
                                 <span>days</span>
@@ -669,21 +571,25 @@
                 <!-- ═══ TAB: SUBDOMAINS ═══ -->
                 <div class="tab-pane" id="tab-subdomains">
                     <div class="page-header">
-                        <div class="page-title">Subdomains</div>
-                        <div class="page-subtitle">Browse the discovered subdomain database</div>
+                        <div class="page-title"><span class="prompt-glyph">$</span>fastrecon --subdomains</div>
+                        <div class="page-subtitle">Browse the discovered subdomain database.</div>
                     </div>
 
                     <div class="card">
+                        <div class="card-header"><div class="card-title">// subdomain_index</div></div>
                         <div class="card-body">
                             <div class="search-row">
                                 <select class="input-field" id="subTargetSelect" onchange="loadSubdomains()">
                                     <option value="">Select target…</option>
                                 </select>
-                                <input type="text" class="input-field" id="subSearch" placeholder="Filter subdomains…" oninput="loadSubdomains()">
+                                <div class="prompt-input" style="flex:1;">
+                                    <span class="prompt-glyph">/</span>
+                                    <input type="text" class="input-field" id="subSearch" placeholder="Filter subdomains…" oninput="loadSubdomains()">
+                                </div>
                                 <button class="btn btn-danger btn-sm" id="bulkDeleteBtn" onclick="bulkDeleteSubdomains()" style="display:none;">Delete Selected</button>
                             </div>
                             <div id="subdomainsList">
-                                <div class="empty">Select a target to view subdomains.</div>
+                                <div class="empty">select a target to view subdomains.</div>
                             </div>
                             <div class="sub-info" id="subdomainsInfo"></div>
                         </div>
@@ -699,18 +605,17 @@
         let eventSource = null;
         let selectedSubIds = new Set();
 
+        const riskColors = { CRITICAL: '#ff5c5c', HIGH: '#ff9142', MEDIUM: '#ffd166', LOW: '#4ade80', CLEAN: '#4ade80' };
+
         // ──── Tab Switching ────
         function switchTab(name) {
-            // Sidebar
             document.querySelectorAll('.nav-item[data-tab]').forEach(n => {
                 n.classList.toggle('active', n.dataset.tab === name);
             });
-            // Mobile nav
             document.querySelectorAll('.mobile-nav-item').forEach((m, i) => {
                 const tabs = ['scan','targets','history','subdomains'];
                 m.classList.toggle('active', tabs[i] === name);
             });
-            // Content
             document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
             document.getElementById('tab-' + name).classList.add('active');
 
@@ -719,19 +624,37 @@
             if (name === 'subdomains') { loadTargetsForSelect(); loadSubdomains(); }
         }
 
-        // ──── Scan ────
-        window.addEventListener('load', () => loadHistory());
+        // ──── Mode selector ────
+        function selectMode(mode, el) {
+            document.getElementById('scanMode').value = mode;
+            document.querySelectorAll('.mode-option').forEach(b => b.classList.toggle('active', b === el));
+        }
+
+        // ──── Init ────
+        window.addEventListener('load', () => { loadHistory(); loadGlobalStats(); });
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('targetInput').addEventListener('keydown', e => {
                 if (e.key === 'Enter') startScan();
             });
         });
 
+        async function loadGlobalStats() {
+            try {
+                const res = await fetch('/api/stats');
+                const s = await res.json();
+                document.getElementById('statTotalScans').textContent = s.total_scans ?? 0;
+                document.getElementById('statUniqueTargets').textContent = s.unique_targets ?? 0;
+                document.getElementById('statTotalSubdomains').textContent = s.total_subdomains ?? 0;
+                document.getElementById('statCriticalAlerts').textContent = s.critical_alerts ?? 0;
+            } catch (e) { console.error('Failed to load global stats:', e); }
+        }
+
+        // ──── Scan ────
         async function startScan() {
             const target = document.getElementById('targetInput').value.trim();
             if (!target) {
-                const el = document.getElementById('targetInput');
-                el.style.borderColor = '#ef4444';
+                const el = document.getElementById('targetInput').closest('.prompt-input');
+                el.style.borderColor = '#ff5c5c';
                 setTimeout(() => el.style.borderColor = '', 1500);
                 return;
             }
@@ -752,6 +675,8 @@
             document.getElementById('progressLog').innerHTML = '';
             document.getElementById('progressBar').style.width = '0%';
             document.getElementById('scanBar').classList.add('active');
+            document.getElementById('stopBtn').disabled = false;
+            document.getElementById('stopBtn').textContent = '■ Abort';
 
             try {
                 const response = await fetch('/api/scan', {
@@ -793,6 +718,7 @@
                     showResults(data);
                     resetControls();
                     loadHistory();
+                    loadGlobalStats();
                 }
                 if (data.status === 'error') {
                     eventSource.close();
@@ -817,29 +743,42 @@
             log.scrollTop = log.scrollHeight;
         }
 
+        function buildGauge(score, level) {
+            const color = riskColors[level] || '#54565f';
+            const r = 34, c = 2 * Math.PI * r;
+            const offset = c - (Math.min(Math.max(score, 0), 100) / 100) * c;
+            return `
+                <svg class="gauge-svg" viewBox="0 0 80 80">
+                    <circle class="gauge-track" cx="40" cy="40" r="${r}"></circle>
+                    <circle class="gauge-fill" cx="40" cy="40" r="${r}" style="stroke:${color}; stroke-dasharray:${c}; stroke-dashoffset:${offset};"></circle>
+                </svg>
+                <div class="gauge-center">
+                    <div class="gauge-score">${score}</div>
+                    <div class="gauge-level" style="color:${color}">${level}</div>
+                </div>`;
+        }
+
         async function showResults(data) {
             document.getElementById('resultsPreview').classList.add('active');
             document.getElementById('resultTarget').textContent = data.target;
 
-            const riskColors = { CRITICAL: '#ef4444', HIGH: '#f97316', MEDIUM: '#eab308', LOW: '#22c55e', CLEAN: '#22c55e' };
-            const badge = document.getElementById('riskBadge');
             const level = data.riskLevel || 'N/A';
             const score = data.riskScore || 0;
-            badge.textContent = `${level}  ${score}/100`;
-            badge.style.background = riskColors[level] || '#555b67';
+            document.getElementById('riskBadge').innerHTML = buildGauge(score, level);
 
             try {
                 const res = await fetch(`/api/results/${currentScanId}`);
                 const result = await res.json();
                 const s = result.stats || {};
                 document.getElementById('resultStats').innerHTML = `
-                    <div class="stat-cell"><div class="stat-value" style="color:#3b82f6">${s.subdomainsDiscovered || 0}</div><div class="stat-label">Subdomains</div></div>
-                    <div class="stat-cell"><div class="stat-value" style="color:#22c55e">${s.liveHosts || 0}</div><div class="stat-label">Live</div></div>
-                    <div class="stat-cell"><div class="stat-value" style="color:#a78bfa">${s.openPorts || 0}</div><div class="stat-label">Ports</div></div>
-                    <div class="stat-cell"><div class="stat-value" style="color:#ef4444">${s.criticalAlerts || 0}</div><div class="stat-label">Critical</div></div>
-                    <div class="stat-cell"><div class="stat-value" style="color:#f97316">${s.highAlerts || 0}</div><div class="stat-label">High</div></div>
-                    <div class="stat-cell"><div class="stat-value" style="color:#eab308">${s.mediumAlerts || 0}</div><div class="stat-label">Medium</div></div>
-                    <div class="stat-cell"><div class="stat-value" style="color:#22c55e">${s.lowAlerts || 0}</div><div class="stat-label">Low</div></div>
+                    <div class="stat-cell" style="--stat-color:#55d6c2"><div class="stat-value">${s.subdomainsDiscovered || 0}</div><div class="stat-label">Subdomains</div></div>
+                    <div class="stat-cell" style="--stat-color:#ffb454"><div class="stat-value">${result.newSubdomains || 0}</div><div class="stat-label">New</div></div>
+                    <div class="stat-cell" style="--stat-color:#4ade80"><div class="stat-value">${s.liveHosts || 0}</div><div class="stat-label">Live</div></div>
+                    <div class="stat-cell" style="--stat-color:#c084fc"><div class="stat-value">${s.openPorts || 0}</div><div class="stat-label">Ports</div></div>
+                    <div class="stat-cell" style="--stat-color:#ff5c5c"><div class="stat-value">${s.criticalAlerts || 0}</div><div class="stat-label">Critical</div></div>
+                    <div class="stat-cell" style="--stat-color:#ff9142"><div class="stat-value">${s.highAlerts || 0}</div><div class="stat-label">High</div></div>
+                    <div class="stat-cell" style="--stat-color:#ffd166"><div class="stat-value">${s.mediumAlerts || 0}</div><div class="stat-label">Medium</div></div>
+                    <div class="stat-cell" style="--stat-color:#4ade80"><div class="stat-value">${s.lowAlerts || 0}</div><div class="stat-label">Low</div></div>
                     <div class="stat-cell"><div class="stat-value">${s.totalAlerts || 0}</div><div class="stat-label">Total</div></div>
                 `;
             } catch (e) { console.error('Failed to load results:', e); }
@@ -853,6 +792,19 @@
             document.getElementById('scanBtn').disabled = false;
             document.getElementById('scanBtn').textContent = 'Start Scan';
             document.getElementById('targetInput').disabled = false;
+        }
+
+        async function stopScan() {
+            // Signal backend to abort the scan thread
+            try { await fetch('/api/scan/stop', { method: 'POST' }); } catch (e) {}
+            if (eventSource) { eventSource.close(); eventSource = null; }
+            document.getElementById('scanBar').classList.remove('active');
+            addLog('Scan aborted by user', 'error');
+            document.getElementById('progressPhase').textContent = 'Aborted';
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('stopBtn').textContent = '■ Aborted';
+            resetControls();
+            currentScanId = null;
         }
 
         function startNewScan() {
@@ -869,14 +821,17 @@
                 const targets = await res.json();
                 const list = document.getElementById('targetsList');
                 if (!targets.length) {
-                    list.innerHTML = '<div class="empty">No saved targets yet.</div>';
+                    list.innerHTML = '<div class="empty">no saved targets yet. add one above.</div>';
                     return;
                 }
                 list.innerHTML = targets.map(t => `
                     <div class="list-item">
-                        <div>
-                            <div class="list-primary">${t.domain}</div>
-                            <div class="list-secondary">${t.last_scanned ? 'Last scan: ' + new Date(t.last_scanned).toLocaleString() : 'Never scanned'}${t.notes ? ' · ' + t.notes : ''}</div>
+                        <div class="list-left">
+                            <span class="status-orb ${t.last_scanned ? 'live' : ''}"></span>
+                            <div style="min-width:0;">
+                                <div class="list-primary">${t.domain}</div>
+                                <div class="list-secondary">${t.last_scanned ? 'Last scan: ' + new Date(t.last_scanned).toLocaleString() : 'Never scanned'}${t.notes ? ' · ' + t.notes : ''}</div>
+                            </div>
                         </div>
                         <div class="list-actions">
                             <button class="btn btn-primary btn-sm" onclick="scanTarget('${t.domain}')">Scan</button>
@@ -889,19 +844,23 @@
 
         async function addTarget() {
             const domain = document.getElementById('newTargetInput').value.trim();
+            const notes = document.getElementById('newTargetNotes').value.trim();
             if (!domain) return;
             await fetch('/api/targets', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ domain }),
+                body: JSON.stringify({ domain, notes }),
             });
             document.getElementById('newTargetInput').value = '';
+            document.getElementById('newTargetNotes').value = '';
             loadTargets();
+            loadGlobalStats();
         }
 
         async function deleteTarget(id) {
             if (!confirm('Delete this target and all its subdomains?')) return;
             await fetch(`/api/targets/${id}`, { method: 'DELETE' });
             loadTargets();
+            loadGlobalStats();
         }
 
         function scanTarget(domain) {
@@ -917,18 +876,17 @@
                 const history = await res.json();
                 const list = document.getElementById('historyList');
                 if (!history.length) {
-                    list.innerHTML = '<div class="empty">No scans yet. Run your first scan.</div>';
+                    list.innerHTML = '<div class="empty">no scans yet. run your first scan.</div>';
                     return;
                 }
-                const riskColors = { CRITICAL: '#ef4444', HIGH: '#f97316', MEDIUM: '#eab308', LOW: '#22c55e', CLEAN: '#22c55e' };
                 list.innerHTML = history.map(h => `
                     <div class="list-item">
-                        <div onclick="window.open('/api/report/${h.id}', '_blank')" style="cursor:pointer; flex:1;">
+                        <div onclick="window.open('/api/report/${h.id}', '_blank')" style="cursor:pointer; flex:1; min-width:0;">
                             <div class="list-primary">${h.target}</div>
-                            <div class="list-secondary">${h.mode} · ${h.totalAlerts} alerts · ${h.newSubdomains || 0} new subs · ${h.duration || ''} · ${new Date(h.timestamp).toLocaleString()}</div>
+                            <div class="list-secondary"><span class="mode-tag">${h.mode}</span> · ${h.totalAlerts} alerts · ${h.newSubdomains || 0} new subs · ${h.duration || ''} · ${new Date(h.timestamp).toLocaleString()}</div>
                         </div>
                         <div class="list-actions">
-                            <span class="risk-text" style="color: ${riskColors[h.riskLevel] || '#555b67'}">${h.riskLevel} (${h.riskScore})</span>
+                            <span class="risk-text" style="color: ${riskColors[h.riskLevel] || '#54565f'}">${h.riskLevel} (${h.riskScore})</span>
                             <a class="btn btn-ghost btn-sm" href="/api/export/${h.id}/csv" title="CSV">CSV</a>
                             <a class="btn btn-ghost btn-sm" href="/api/export/${h.id}/json" title="JSON">JSON</a>
                             <button class="btn btn-danger btn-sm" onclick="deleteScan('${h.id}')" title="Delete">Delete</button>
@@ -942,6 +900,7 @@
             if (!confirm('Delete this scan?')) return;
             await fetch(`/api/scans/${scanId}`, { method: 'DELETE' });
             loadHistory();
+            loadGlobalStats();
         }
 
         async function purgeScans() {
@@ -954,6 +913,7 @@
             const data = await res.json();
             alert(`Purged ${data.purged} old scan(s).`);
             loadHistory();
+            loadGlobalStats();
         }
 
         // ──── Subdomains ────
@@ -976,7 +936,7 @@
             const list = document.getElementById('subdomainsList');
 
             if (!target) {
-                list.innerHTML = '<div class="empty">Select a target to view subdomains.</div>';
+                list.innerHTML = '<div class="empty">select a target to view subdomains.</div>';
                 document.getElementById('subdomainsInfo').textContent = '';
                 return;
             }
@@ -988,7 +948,7 @@
                 updateBulkBtn();
 
                 if (!data.subdomains.length) {
-                    list.innerHTML = '<div class="empty">No subdomains found. Run a scan first.</div>';
+                    list.innerHTML = '<div class="empty">no subdomains found. run a scan first.</div>';
                     document.getElementById('subdomainsInfo').textContent = `Total: ${data.total}`;
                     return;
                 }
@@ -1002,8 +962,8 @@
                         <td>${s.subdomain}</td>
                         <td><span class="${cls}">${s.status || '?'}</span></td>
                         <td>${s.http_status || '-'}</td>
-                        <td>${(s.title || '-').substring(0, 40)}</td>
-                        <td style="color:#555b67;font-size:11px;">${s.first_seen ? new Date(s.first_seen).toLocaleDateString() : '-'}</td>
+                        <td style="font-family:var(--sans);">${(s.title || '-').substring(0, 40)}</td>
+                        <td style="color:var(--text-faint);font-size:11px;">${s.first_seen ? new Date(s.first_seen).toLocaleDateString() : '-'}</td>
                     </tr>`;
                 });
                 html += '</table>';

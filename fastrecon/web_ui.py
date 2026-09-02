@@ -1,5 +1,6 @@
 """
-FastRecon Web UI v3.1 — Flask-based web interface with full data management.
+FastRecon Web UI — Flask-based web interface for FastRecon.
+Includes scan stop/abort support via threading.Event flag.
 Target management, scan triggering, real-time progress, result browsing,
 subdomain search & bulk delete, scan purging, and CSV/JSON export.
 """
@@ -41,9 +42,27 @@ if not API_KEY:
 
 
 def require_api_key(f):
-    """Decorator that enforces API key authentication on routes."""
+    """Decorator that enforces API key authentication on routes.
+
+    Same-origin browser requests (from the web UI) are allowed through
+    without an API key. External/programmatic API calls still require
+    the X-API-Key header or api_key query parameter.
+    """
     @wraps(f)
     def wrapper(*args, **kwargs):
+        # Allow same-origin browser requests (web UI)
+        referer = request.headers.get("Referer", "")
+        origin = request.headers.get("Origin", "")
+        if referer and request.host in referer:
+            return f(*args, **kwargs)
+        if origin and request.host in origin:
+            return f(*args, **kwargs)
+        # Allow SSE (EventSource) and same-origin fetch requests
+        if request.headers.get("Sec-Fetch-Site") == "same-origin":
+            return f(*args, **kwargs)
+        if "text/event-stream" in request.headers.get("Accept", ""):
+            return f(*args, **kwargs)
+        # External API access requires API key
         key = request.headers.get("X-API-Key") or request.args.get("api_key")
         if not key or not secrets.compare_digest(key, API_KEY):
             return jsonify({"error": "Unauthorized"}), 401
@@ -59,18 +78,23 @@ scan_store = {
     "current_scan": None,
     "progress_queue": queue.Queue(),
     "results": {},  # in-memory cache for active scan results
+    "stop_flag": threading.Event(),  # set to signal the scan thread to abort
 }
 
 
 
 def run_scan_async(target, mode, skip_cloud, skip_ports, skip_vulns, skip_endpoints, scan_id):
-    """Run a scan in a background thread."""
+    """Run a scan in a background thread. Checks stop_flag between phases."""
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
     progress_updates = scan_store["progress_queue"]
+    stop_flag = scan_store["stop_flag"]
 
     def progress_callback(update):
+        # Check stop flag on every progress callback (called between phases)
+        if stop_flag.is_set():
+            raise InterruptedError("Scan aborted by user")
         update["scanId"] = scan_id
         update["timestamp"] = datetime.utcnow().isoformat()
         progress_updates.put(json.dumps(update))
@@ -109,6 +133,14 @@ def run_scan_async(target, mode, skip_cloud, skip_ports, skip_vulns, skip_endpoi
             "riskScore": report.get("riskScore", 0),
         })
 
+    except InterruptedError:
+        progress_updates.put(json.dumps({
+            "scanId": scan_id,
+            "phase": "Aborted", "phaseNum": 0, "totalPhases": 10,
+            "status": "error", "target": target,
+            "error": "Scan stopped by user",
+            "timestamp": datetime.utcnow().isoformat(),
+        }))
     except Exception as e:
         progress_callback({
             "phase": "Error", "phaseNum": 0, "totalPhases": 10,
@@ -117,6 +149,7 @@ def run_scan_async(target, mode, skip_cloud, skip_ports, skip_vulns, skip_endpoi
         })
     finally:
         scan_store["current_scan"] = None
+        stop_flag.clear()
         loop.close()
 
 
@@ -138,6 +171,12 @@ def results_page(scan_id):
         # Try loading from database
         result = db.get_scan_report(scan_id)
     return render_template("results.html", scan_id=scan_id, result=result, version=__version__)
+
+
+@app.route("/scan/<scan_id>")
+def scan_results_page(scan_id):
+    """View scan results within the main app shell (integrated view)."""
+    return render_template("index.html", version=__version__, view_scan=scan_id)
 
 
 # ──────────────────────────────────────────────
@@ -188,6 +227,16 @@ def start_scan():
     thread.start()
 
     return jsonify({"scanId": scan_id, "target": target, "mode": mode})
+
+
+@app.route("/api/scan/stop", methods=["POST"])
+@require_api_key
+def stop_scan():
+    """Stop the currently running scan."""
+    if not scan_store["current_scan"]:
+        return jsonify({"error": "No scan is currently running"}), 404
+    scan_store["stop_flag"].set()
+    return jsonify({"status": "stopping", "scanId": scan_store["current_scan"]})
 
 
 @app.route("/api/progress")

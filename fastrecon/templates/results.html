@@ -3,130 +3,207 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FastRecon ⚡ — Scan Results</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <title>FastRecon — Scan Report</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --void: #09090b;
+            --panel: #111318;
+            --panel-raised: #16181f;
+            --line: #23262e;
+            --line-soft: #1a1c23;
+            --text: #e8e6e0;
+            --text-dim: #94969e;
+            --text-faint: #54565f;
+            --amber: #ffb454;
+            --amber-soft: rgba(255, 180, 84, 0.1);
+            --cyan: #55d6c2;
+            --red: #ff5c5c;
+            --orange: #ff9142;
+            --yellow: #ffd166;
+            --green: #4ade80;
+            --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+            --sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', sans-serif; background: #0a0e17; color: #e2e8f0; min-height: 100vh; }
-        .grid-bg { position: fixed; inset: 0; background-image: radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px); background-size: 32px 32px; pointer-events: none; z-index: 0; }
-        .container { max-width: 1200px; margin: 0 auto; padding: 20px; position: relative; z-index: 1; }
+        body {
+            font-family: var(--sans);
+            background:
+                radial-gradient(ellipse 900px 500px at 15% -10%, rgba(255,180,84,0.05), transparent),
+                var(--void);
+            color: var(--text-dim); min-height: 100vh; font-size: 14px;
+        }
+        code, .mono { font-family: var(--mono); }
+        .container { max-width: 1180px; margin: 0 auto; padding: 22px 24px 60px; }
 
         /* Header */
-        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.06); }
-        .logo-sm { font-size: 1.5rem; font-weight: 800; background: linear-gradient(135deg, #06d6a0, #118ab2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-decoration: none; }
-        .nav-links { display: flex; gap: 12px; }
-        .nav-link { color: #64748b; text-decoration: none; font-size: 0.85rem; padding: 6px 12px; border-radius: 6px; transition: all 0.2s; }
-        .nav-link:hover { color: #e2e8f0; background: rgba(255,255,255,0.05); }
+        .page-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 22px; padding-bottom: 16px; border-bottom: 1px solid var(--line);
+            flex-wrap: wrap; gap: 12px;
+        }
+        .brand-link { display: flex; align-items: center; gap: 9px; text-decoration: none; }
+        .brand-glyph {
+            width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+            border: 1px solid var(--amber); border-radius: 6px; color: var(--amber); flex-shrink: 0;
+        }
+        .brand-glyph svg { width: 15px; height: 15px; }
+        .brand-name { font-family: var(--mono); font-weight: 700; font-size: 14px; letter-spacing: 1.5px; color: var(--text); text-transform: uppercase; }
+        .nav-links { display: flex; gap: 8px; }
+        .nav-link {
+            color: var(--text-dim); text-decoration: none; font-size: 11.5px; font-weight: 700; font-family: var(--mono);
+            padding: 8px 14px; border-radius: 7px; border: 1px solid var(--line); transition: all 0.15s;
+            text-transform: uppercase; letter-spacing: 0.3px;
+        }
+        .nav-link:hover { color: var(--text); border-color: #34373f; background: rgba(255,255,255,0.03); }
+        .nav-link.primary { color: #1a1305; background: var(--amber); border-color: var(--amber); }
+        .nav-link.primary:hover { background: #ffc274; }
 
-        /* Glass card */
-        .glass { background: rgba(17, 24, 39, 0.7); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.06); border-radius: 14px; }
+        .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
 
         /* Tabs */
-        .tabs { display: flex; gap: 4px; margin-bottom: 24px; overflow-x: auto; padding-bottom: 4px; flex-wrap: wrap; }
-        .tab { padding: 10px 18px; border-radius: 8px; font-size: 0.85rem; font-weight: 500; color: #64748b; cursor: pointer; transition: all 0.2s; border: 1px solid transparent; white-space: nowrap; }
-        .tab:hover { color: #e2e8f0; background: rgba(255,255,255,0.03); }
-        .tab.active { color: #06d6a0; background: rgba(6, 214, 160, 0.1); border-color: rgba(6, 214, 160, 0.2); }
-        .tab .count { background: rgba(255,255,255,0.1); padding: 1px 6px; border-radius: 10px; font-size: 0.7rem; margin-left: 4px; }
+        .tabs { display: flex; gap: 6px; margin-bottom: 20px; overflow-x: auto; padding-bottom: 4px; }
+        .tab {
+            padding: 9px 15px; border-radius: 7px; font-size: 12px; font-weight: 700; color: var(--text-faint);
+            cursor: pointer; transition: all 0.15s; border: 1px solid transparent; white-space: nowrap;
+            font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.3px;
+        }
+        .tab:hover { color: var(--text-dim); background: rgba(255,255,255,0.03); }
+        .tab.active { color: var(--amber); background: var(--amber-soft); border-color: rgba(255,180,84,0.25); }
+        .tab .count { background: rgba(255,255,255,0.08); padding: 1px 6px; border-radius: 10px; font-size: 10px; margin-left: 5px; }
 
-        /* Section */
         .section { display: none; }
         .section.active { display: block; }
-        .section-card { padding: 20px; margin-bottom: 16px; }
-        .section-title { font-size: 1.1rem; font-weight: 700; color: #06d6a0; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
-
-        /* Risk overview */
-        .risk-overview { display: grid; grid-template-columns: 200px 1fr; gap: 20px; align-items: center; margin-bottom: 20px; }
-        .risk-circle { width: 120px; height: 120px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0 auto; }
-        .risk-score { font-size: 2rem; font-weight: 900; color: white; }
-        .risk-label { font-size: 0.75rem; color: rgba(255,255,255,0.7); text-transform: uppercase; letter-spacing: 1px; }
-        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px; }
-        .stat-card { text-align: center; padding: 14px; background: rgba(0,0,0,0.2); border-radius: 10px; }
-        .stat-value { font-size: 1.6rem; font-weight: 800; }
-        .stat-label-sm { font-size: 0.65rem; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
-
-        /* Alert cards */
-        .alert-card { background: rgba(10, 14, 23, 0.6); border-radius: 10px; padding: 14px 16px; margin-bottom: 8px; border-left: 4px solid; transition: transform 0.15s; }
-        .alert-card:hover { transform: translateX(4px); }
-        .alert-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-        .sev-badge { padding: 3px 8px; border-radius: 4px; font-size: 0.65rem; font-weight: 700; color: white; }
-        .alert-type { font-weight: 600; font-size: 0.9rem; }
-        .alert-detail { font-size: 0.8rem; color: #94a3b8; margin: 3px 0; }
-        .alert-evidence { font-size: 0.75rem; color: #64748b; }
-        .alert-evidence code { background: rgba(255,255,255,0.05); padding: 1px 4px; border-radius: 3px; }
-        .remediation-box { background: rgba(6, 214, 160, 0.08); border-radius: 6px; padding: 8px 10px; margin-top: 6px; font-size: 0.75rem; color: #06d6a0; }
-
-        /* Tables */
-        table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
-        th { background: rgba(6, 214, 160, 0.08); color: #06d6a0; padding: 10px 12px; text-align: left; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
-        td { padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,0.03); }
-        tr:hover { background: rgba(255,255,255,0.02); }
-
-        /* Tech items */
-        .tech-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
-        .tech-card { background: rgba(0,0,0,0.2); border-radius: 8px; padding: 12px; display: flex; align-items: center; gap: 10px; }
-        .tech-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
-        .tech-name { font-weight: 600; font-size: 0.85rem; }
-        .tech-cat { font-size: 0.7rem; color: #64748b; }
-
-        /* Header grade */
-        .grade-display { text-align: center; margin-bottom: 20px; }
-        .grade-big { font-size: 3rem; font-weight: 900; }
-        .grade-sub { color: #64748b; font-size: 0.85rem; }
-
-        /* Port styling */
-        .port-dangerous { background: rgba(239, 71, 111, 0.08); }
-        .status-open { color: #06d6a0; font-weight: 600; }
-        .status-public { color: #ef476f; font-weight: 700; }
-        .status-private { color: #ffd166; }
-
-        /* Empty state */
-        .empty-state { text-align: center; padding: 40px; color: #475569; }
-        .empty-state .icon { font-size: 2rem; margin-bottom: 8px; }
-
-        /* Loading */
-        .loading { text-align: center; padding: 40px; color: #64748b; }
-        .spinner { width: 30px; height: 30px; border: 3px solid rgba(6,214,160,0.2); border-top-color: #06d6a0; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .risk-overview { grid-template-columns: 1fr; }
-            .stats-grid { grid-template-columns: repeat(4, 1fr); }
+        .section-card { padding: 20px; margin-bottom: 14px; }
+        .section-title {
+            font-family: var(--mono); font-size: 12.5px; font-weight: 600; color: var(--cyan);
+            margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.4px;
         }
 
-        /* Scrollbar */
-        ::-webkit-scrollbar { width: 6px; }
+        /* Risk overview */
+        .risk-overview { display: grid; grid-template-columns: 130px 1fr; gap: 24px; align-items: center; margin-bottom: 18px; }
+        .gauge-wrap { position: relative; width: 116px; height: 116px; margin: 0 auto; }
+        .gauge-svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+        .gauge-track { fill: none; stroke: var(--line); stroke-width: 9; }
+        .gauge-fill { fill: none; stroke-width: 9; stroke-linecap: round; }
+        .gauge-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .gauge-score { font-family: var(--mono); font-size: 26px; font-weight: 800; color: var(--text); line-height: 1; }
+        .gauge-level { font-size: 10px; font-weight: 700; letter-spacing: 0.5px; margin-top: 3px; text-transform: uppercase; }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px; }
+        .stat-card {
+            text-align: center; padding: 13px 8px; background: var(--void); border: 1px solid var(--line);
+            border-radius: 9px; border-top: 2px solid var(--stat-color, var(--line));
+        }
+        .stat-value { font-family: var(--mono); font-size: 20px; font-weight: 800; color: var(--stat-color, var(--text)); }
+        .stat-label-sm { font-size: 9.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.6px; margin-top: 3px; font-weight: 600; }
+        .meta-line {
+            color: var(--text-faint); font-size: 11.5px; text-align: center; margin-top: 14px; font-family: var(--mono);
+            padding-top: 14px; border-top: 1px solid var(--line-soft);
+        }
+
+        /* Alert cards */
+        .alert-card {
+            background: var(--void); border-radius: 9px; padding: 13px 15px; margin-bottom: 8px;
+            border: 1px solid var(--line); border-left: 3px solid; transition: border-color 0.15s;
+        }
+        .alert-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+        .sev-badge {
+            padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; color: #0b0c0e;
+            font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.3px;
+        }
+        .alert-type { font-weight: 700; font-size: 13px; color: var(--text); font-family: var(--mono); }
+        .alert-detail { font-size: 12px; color: var(--text-dim); margin: 3px 0; }
+        .alert-evidence { font-size: 11px; color: var(--text-faint); }
+        .alert-evidence code { background: rgba(255,255,255,0.05); padding: 1px 5px; border-radius: 3px; }
+        .remediation-box {
+            background: rgba(74,222,128,0.06); border: 1px solid rgba(74,222,128,0.15); border-radius: 6px;
+            padding: 8px 11px; margin-top: 7px; font-size: 11.5px; color: var(--green);
+        }
+
+        /* Tables */
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th {
+            background: rgba(255,255,255,0.02); color: var(--cyan); padding: 9px 12px; text-align: left;
+            font-weight: 600; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px;
+            font-family: var(--mono); border-bottom: 1px solid var(--line);
+        }
+        td { padding: 9px 12px; border-bottom: 1px solid var(--line-soft); font-family: var(--mono); color: var(--text-dim); }
+        tr:hover td { background: rgba(255,255,255,0.015); }
+
+        /* Tech */
+        .tech-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+        .tech-card {
+            background: var(--void); border: 1px solid var(--line); border-radius: 8px; padding: 12px;
+            display: flex; align-items: center; gap: 11px;
+        }
+        .tech-icon {
+            width: 34px; height: 34px; border-radius: 7px; display: flex; align-items: center; justify-content: center;
+            background: var(--amber-soft); color: var(--amber); font-family: var(--mono); font-weight: 700; font-size: 12px; flex-shrink: 0;
+        }
+        .tech-name { font-weight: 600; font-size: 13px; color: var(--text); font-family: var(--sans); }
+        .tech-cat { font-size: 10.5px; color: var(--text-faint); font-family: var(--mono); }
+
+        /* Header grade */
+        .grade-display { text-align: center; margin-bottom: 18px; }
+        .grade-big { font-family: var(--mono); font-size: 2.6rem; font-weight: 800; }
+        .grade-sub { color: var(--text-faint); font-size: 12px; margin-top: 2px; font-family: var(--mono); }
+
+        .port-dangerous { background: rgba(255,92,92,0.05); }
+        .status-open { color: var(--green); font-weight: 700; }
+        .status-public { color: var(--red); font-weight: 700; }
+        .status-private { color: var(--yellow); font-weight: 600; }
+
+        .empty-state { text-align: center; padding: 44px 16px; color: var(--text-faint); font-family: var(--mono); font-size: 12.5px; }
+        .empty-state::before { content: "// "; }
+        .empty-state a { color: var(--amber); }
+
+        .loading { text-align: center; padding: 60px; color: var(--text-faint); font-family: var(--mono); font-size: 12.5px; }
+        .spinner {
+            width: 26px; height: 26px; border: 3px solid rgba(255,180,84,0.2); border-top-color: var(--amber);
+            border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        @media (max-width: 768px) {
+            .risk-overview { grid-template-columns: 1fr; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
     </style>
 </head>
 <body>
-    <div class="grid-bg"></div>
-
     <div class="container">
-        <!-- Header -->
         <div class="page-header">
-            <a href="/" class="logo-sm">⚡ FastRecon</a>
+            <a href="/" class="brand-link">
+                <span class="brand-glyph">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>
+                </span>
+                <span class="brand-name">FastRecon</span>
+            </a>
             <div class="nav-links">
                 <a href="/" class="nav-link">New Scan</a>
-                <a href="/api/report/{{ scan_id }}" class="nav-link" target="_blank">📄 Full Report</a>
-                <a href="/api/results/{{ scan_id }}" class="nav-link" target="_blank">📥 JSON</a>
+                <a href="/api/report/{{ scan_id }}" class="nav-link" target="_blank">Full Report</a>
+                <a href="/api/results/{{ scan_id }}" class="nav-link primary" target="_blank">JSON</a>
             </div>
         </div>
 
-        <!-- Content loaded via JS -->
         <div id="content">
             <div class="loading">
                 <div class="spinner"></div>
-                <div>Loading scan results...</div>
+                <div>loading scan results…</div>
             </div>
         </div>
     </div>
 
     <script>
         const scanId = '{{ scan_id }}';
-        const sevColors = { CRITICAL: '#ef476f', HIGH: '#f77f00', MEDIUM: '#ffd166', LOW: '#06d6a0', INFO: '#6c757d' };
-        const riskColors = { CRITICAL: '#ef476f', HIGH: '#f77f00', MEDIUM: '#ffd166', LOW: '#06d6a0', CLEAN: '#06d6a0' };
+        const sevColors = { CRITICAL: '#ff5c5c', HIGH: '#ff9142', MEDIUM: '#ffd166', LOW: '#4ade80', INFO: '#54565f' };
+        const riskColors = { CRITICAL: '#ff5c5c', HIGH: '#ff9142', MEDIUM: '#ffd166', LOW: '#4ade80', CLEAN: '#4ade80' };
         let resultData = null;
 
         window.addEventListener('load', async () => {
@@ -138,102 +215,111 @@
             } catch (e) {
                 document.getElementById('content').innerHTML = `
                     <div class="empty-state">
-                        <div class="icon">🔍</div>
-                        <div>Scan results not found or still in progress.</div>
-                        <div style="margin-top:8px"><a href="/" style="color:#06d6a0">Start a new scan</a></div>
+                        scan results not found or still in progress.
+                        <div style="margin-top:8px"><a href="/">start a new scan</a></div>
                     </div>`;
             }
         });
+
+        function buildGauge(score, level) {
+            const color = riskColors[level] || '#54565f';
+            const r = 50, c = 2 * Math.PI * r;
+            const offset = c - (Math.min(Math.max(score, 0), 100) / 100) * c;
+            return `
+                <div class="gauge-wrap">
+                    <svg class="gauge-svg" viewBox="0 0 116 116">
+                        <circle class="gauge-track" cx="58" cy="58" r="${r}"></circle>
+                        <circle class="gauge-fill" cx="58" cy="58" r="${r}" style="stroke:${color}; stroke-dasharray:${c}; stroke-dashoffset:${offset};"></circle>
+                    </svg>
+                    <div class="gauge-center">
+                        <div class="gauge-score">${score}</div>
+                        <div class="gauge-level" style="color:${color}">${level}</div>
+                    </div>
+                </div>`;
+        }
 
         function renderResults(data) {
             const stats = data.stats || {};
             const riskLevel = data.riskLevel || 'N/A';
             const riskScore = data.riskScore || 0;
-            const rc = riskColors[riskLevel] || '#6c757d';
 
             let html = `
-                <!-- Tabs -->
                 <div class="tabs">
-                    <div class="tab active" onclick="switchTab('overview')">📊 Overview</div>
-                    <div class="tab" onclick="switchTab('vulns')">🐛 Vulnerabilities <span class="count">${(data.vulnerabilities||[]).length}</span></div>
-                    <div class="tab" onclick="switchTab('alerts')">🚨 Alerts <span class="count">${stats.totalAlerts||0}</span></div>
-                    <div class="tab" onclick="switchTab('ports')">🔌 Ports <span class="count">${(data.openPorts||[]).length}</span></div>
-                    <div class="tab" onclick="switchTab('endpoints')">📂 Endpoints <span class="count">${(data.endpoints||[]).length}</span></div>
-                    <div class="tab" onclick="switchTab('tech')">🔬 Technologies <span class="count">${(data.technologies||[]).length}</span></div>
-                    <div class="tab" onclick="switchTab('headers')">🛡️ Headers</div>
-                    <div class="tab" onclick="switchTab('cloud')">☁️ Cloud <span class="count">${(data.cloudBuckets||[]).length}</span></div>
-                    <div class="tab" onclick="switchTab('dns')">🌐 DNS</div>
-                    <div class="tab" onclick="switchTab('subdomains')">🏠 Subdomains <span class="count">${stats.subdomainsDiscovered||0}</span></div>
+                    <div class="tab active" onclick="switchTab('overview')">Overview</div>
+                    <div class="tab" onclick="switchTab('vulns')">Vulnerabilities <span class="count">${(data.vulnerabilities||[]).length}</span></div>
+                    <div class="tab" onclick="switchTab('alerts')">Alerts <span class="count">${stats.totalAlerts||0}</span></div>
+                    <div class="tab" onclick="switchTab('ports')">Ports <span class="count">${(data.openPorts||[]).length}</span></div>
+                    <div class="tab" onclick="switchTab('endpoints')">Endpoints <span class="count">${(data.endpoints||[]).length}</span></div>
+                    <div class="tab" onclick="switchTab('tech')">Technologies <span class="count">${(data.technologies||[]).length}</span></div>
+                    <div class="tab" onclick="switchTab('headers')">Headers</div>
+                    <div class="tab" onclick="switchTab('cloud')">Cloud <span class="count">${(data.cloudBuckets||[]).length}</span></div>
+                    <div class="tab" onclick="switchTab('dns')">DNS</div>
+                    <div class="tab" onclick="switchTab('subdomains')">Subdomains <span class="count">${stats.subdomainsDiscovered||0}</span></div>
                 </div>
 
                 <!-- OVERVIEW -->
                 <div class="section active" id="section-overview">
-                    <div class="glass section-card">
+                    <div class="panel section-card">
                         <div class="risk-overview">
-                            <div>
-                                <div class="risk-circle" style="background: linear-gradient(135deg, ${rc}, ${rc}88);">
-                                    <div class="risk-score">${riskScore}</div>
-                                    <div class="risk-label">${riskLevel}</div>
-                                </div>
-                            </div>
+                            <div>${buildGauge(riskScore, riskLevel)}</div>
                             <div class="stats-grid">
-                                <div class="stat-card"><div class="stat-value" style="color:#118ab2">${stats.subdomainsDiscovered||0}</div><div class="stat-label-sm">Subdomains</div></div>
-                                <div class="stat-card"><div class="stat-value" style="color:#06d6a0">${stats.liveHosts||0}</div><div class="stat-label-sm">Live Hosts</div></div>
-                                <div class="stat-card"><div class="stat-value" style="color:#9b5de5">${stats.openPorts||0}</div><div class="stat-label-sm">Open Ports</div></div>
-                                <div class="stat-card"><div class="stat-value" style="color:#ef476f">${stats.vulnerabilities||0}</div><div class="stat-label-sm">Vulnerabilities</div></div>
-                                <div class="stat-card"><div class="stat-value" style="color:#ef476f">${stats.criticalAlerts||0}</div><div class="stat-label-sm">Critical</div></div>
-                                <div class="stat-card"><div class="stat-value" style="color:#f77f00">${stats.highAlerts||0}</div><div class="stat-label-sm">High</div></div>
-                                <div class="stat-card"><div class="stat-value" style="color:#ffd166">${stats.mediumAlerts||0}</div><div class="stat-label-sm">Medium</div></div>
-                                <div class="stat-card"><div class="stat-value" style="color:#06d6a0">${stats.lowAlerts||0}</div><div class="stat-label-sm">Low</div></div>
+                                <div class="stat-card" style="--stat-color:#55d6c2"><div class="stat-value">${stats.subdomainsDiscovered||0}</div><div class="stat-label-sm">Subdomains</div></div>
+                                <div class="stat-card" style="--stat-color:#4ade80"><div class="stat-value">${stats.liveHosts||0}</div><div class="stat-label-sm">Live Hosts</div></div>
+                                <div class="stat-card" style="--stat-color:#c084fc"><div class="stat-value">${stats.openPorts||0}</div><div class="stat-label-sm">Open Ports</div></div>
+                                <div class="stat-card" style="--stat-color:#ff5c5c"><div class="stat-value">${stats.vulnerabilities||0}</div><div class="stat-label-sm">Vulnerabilities</div></div>
+                                <div class="stat-card" style="--stat-color:#ff5c5c"><div class="stat-value">${stats.criticalAlerts||0}</div><div class="stat-label-sm">Critical</div></div>
+                                <div class="stat-card" style="--stat-color:#ff9142"><div class="stat-value">${stats.highAlerts||0}</div><div class="stat-label-sm">High</div></div>
+                                <div class="stat-card" style="--stat-color:#ffd166"><div class="stat-value">${stats.mediumAlerts||0}</div><div class="stat-label-sm">Medium</div></div>
+                                <div class="stat-card" style="--stat-color:#4ade80"><div class="stat-value">${stats.lowAlerts||0}</div><div class="stat-label-sm">Low</div></div>
                             </div>
                         </div>
-                        <div style="color:#64748b; font-size:0.8rem; text-align:center; margin-top:8px;">
-                            Target: ${esc(data.target)} · Duration: ${esc(data.scanDuration)} · Mode: ${esc(data.scanMode)} · ${esc(data.scanDate)}
+                        <div class="meta-line">
+                            target: ${esc(data.target)} · duration: ${esc(data.scanDuration)} · mode: ${esc(data.scanMode)} · ${esc(data.scanDate)}
                         </div>
                     </div>
                 </div>
 
                 <!-- VULNERABILITIES -->
                 <div class="section" id="section-vulns">
-                    <div class="glass section-card">
-                        <div class="section-title">🐛 Vulnerability Findings</div>
+                    <div class="panel section-card">
+                        <div class="section-title">// vulnerability_findings</div>
                         ${renderVulns(data.vulnerabilities || [])}
                     </div>
                 </div>
 
                 <!-- ALERTS -->
                 <div class="section" id="section-alerts">
-                    <div class="glass section-card">
-                        <div class="section-title">🚨 All Security Alerts</div>
+                    <div class="panel section-card">
+                        <div class="section-title">// all_security_alerts</div>
                         ${renderAlerts(data.alerts || [])}
                     </div>
                 </div>
 
                 <!-- PORTS -->
                 <div class="section" id="section-ports">
-                    <div class="glass section-card">
-                        <div class="section-title">🔌 Open Ports</div>
+                    <div class="panel section-card">
+                        <div class="section-title">// open_ports</div>
                         ${renderPorts(data.openPorts || [])}
                     </div>
                 </div>
 
                 <!-- ENDPOINTS -->
                 <div class="section" id="section-endpoints">
-                    <div class="glass section-card">
-                        <div class="section-title">📂 Discovered Endpoints</div>
+                    <div class="panel section-card">
+                        <div class="section-title">// discovered_endpoints</div>
                         ${renderEndpoints(data.endpoints || [])}
                         ${(data.apiEndpoints||[]).length > 0 ? `
-                            <div class="section-title" style="margin-top:20px;">🔗 API Endpoints (from JS)</div>
+                            <div class="section-title" style="margin-top:20px;">// api_endpoints (from js)</div>
                             <div style="display:flex;flex-wrap:wrap;gap:6px;">
-                                ${data.apiEndpoints.map(e => `<code style="background:rgba(255,255,255,0.05);padding:3px 8px;border-radius:4px;font-size:0.75rem;">${esc(e)}</code>`).join('')}
+                                ${data.apiEndpoints.map(e => `<code style="background:rgba(255,255,255,0.05);padding:3px 8px;border-radius:4px;font-size:11px;">${esc(e)}</code>`).join('')}
                             </div>` : ''}
                     </div>
                 </div>
 
                 <!-- TECHNOLOGIES -->
                 <div class="section" id="section-tech">
-                    <div class="glass section-card">
-                        <div class="section-title">🔬 Detected Technologies</div>
+                    <div class="panel section-card">
+                        <div class="section-title">// detected_technologies</div>
                         ${renderTech(data.technologies || [])}
                         ${renderInsights(data.techInsights || [])}
                     </div>
@@ -241,32 +327,32 @@
 
                 <!-- HEADERS -->
                 <div class="section" id="section-headers">
-                    <div class="glass section-card">
-                        <div class="section-title">🛡️ Security Header Analysis</div>
+                    <div class="panel section-card">
+                        <div class="section-title">// security_header_analysis</div>
                         ${renderHeaders(data.headerReport || {})}
                     </div>
                 </div>
 
                 <!-- CLOUD -->
                 <div class="section" id="section-cloud">
-                    <div class="glass section-card">
-                        <div class="section-title">☁️ Cloud Storage Buckets</div>
+                    <div class="panel section-card">
+                        <div class="section-title">// cloud_storage_buckets</div>
                         ${renderCloud(data.cloudBuckets || [])}
                     </div>
                 </div>
 
                 <!-- DNS -->
                 <div class="section" id="section-dns">
-                    <div class="glass section-card">
-                        <div class="section-title">🌐 DNS Information</div>
+                    <div class="panel section-card">
+                        <div class="section-title">// dns_information</div>
                         ${renderDns(data.dnsInfo || {})}
                     </div>
                 </div>
 
                 <!-- SUBDOMAINS -->
                 <div class="section" id="section-subdomains">
-                    <div class="glass section-card">
-                        <div class="section-title">🏠 Live Hosts</div>
+                    <div class="panel section-card">
+                        <div class="section-title">// live_hosts</div>
                         ${renderSubdomains(data.liveHosts || [])}
                     </div>
                 </div>
@@ -283,55 +369,55 @@
         }
 
         function renderAlerts(alerts) {
-            if (!alerts.length) return '<div class="empty-state"><div class="icon">✅</div>No alerts found</div>';
+            if (!alerts.length) return '<div class="empty-state">no alerts found</div>';
             return alerts.map(a => `
-                <div class="alert-card" style="border-color: ${sevColors[a.severity]||'#6c757d'}">
+                <div class="alert-card" style="border-left-color: ${sevColors[a.severity]||'#54565f'}">
                     <div class="alert-header">
-                        <span class="sev-badge" style="background:${sevColors[a.severity]}">${esc(a.severity)}</span>
+                        <span class="sev-badge" style="background:${sevColors[a.severity]||'#54565f'}">${esc(a.severity)}</span>
                         <span class="alert-type">${esc(a.type)}</span>
                     </div>
                     <div class="alert-detail"><strong>Asset:</strong> ${esc(a.asset)}</div>
                     <div class="alert-detail">${esc(a.details)}</div>
                     ${a.evidence ? `<div class="alert-evidence"><strong>Evidence:</strong> <code>${esc(a.evidence.substring(0,200))}</code></div>` : ''}
-                    ${a.remediation ? `<div class="remediation-box">💡 <strong>Fix:</strong> ${esc(a.remediation)}</div>` : ''}
+                    ${a.remediation ? `<div class="remediation-box"><strong>Fix:</strong> ${esc(a.remediation)}</div>` : ''}
                 </div>
             `).join('');
         }
 
         function renderVulns(vulns) {
-            if (!vulns.length) return '<div class="empty-state"><div class="icon">✅</div>No vulnerabilities detected</div>';
+            if (!vulns.length) return '<div class="empty-state">no vulnerabilities detected</div>';
             return renderAlerts(vulns);
         }
 
         function renderPorts(ports) {
-            if (!ports.length) return '<div class="empty-state"><div class="icon">🔒</div>No open ports found (or port scan was skipped)</div>';
+            if (!ports.length) return '<div class="empty-state">no open ports found (or port scan was skipped)</div>';
             const dangerous = [6379,27017,9200,11211,5900,3389,23,445,1433,3306,5432];
             return `<table><tr><th>Port</th><th>Service</th><th>State</th><th>Banner</th></tr>
                 ${ports.map(p => `<tr class="${dangerous.includes(p.port)?'port-dangerous':''}">
                     <td><strong>${p.port}</strong></td>
                     <td>${esc(p.service)}</td>
                     <td><span class="status-open">OPEN</span></td>
-                    <td style="font-size:0.75rem;color:#94a3b8">${esc((p.banner||'').substring(0,100))}</td>
+                    <td style="font-size:11px;color:var(--text-faint)">${esc((p.banner||'').substring(0,100))}</td>
                 </tr>`).join('')}</table>`;
         }
 
         function renderEndpoints(eps) {
-            if (!eps.length) return '<div class="empty-state"><div class="icon">📭</div>No endpoints discovered (or endpoint scan was skipped)</div>';
+            if (!eps.length) return '<div class="empty-state">no endpoints discovered (or endpoint scan was skipped)</div>';
             return `<table><tr><th>Severity</th><th>Path</th><th>Status</th><th>Type</th></tr>
                 ${eps.map(e => `<tr>
-                    <td><span class="sev-badge" style="background:${sevColors[e.severity]}">${esc(e.severity)}</span></td>
+                    <td><span class="sev-badge" style="background:${sevColors[e.severity]||'#54565f'}">${esc(e.severity)}</span></td>
                     <td><code>${esc(e.path)}</code></td>
                     <td>${e.status}</td>
-                    <td style="color:#64748b">${esc(e.type)}</td>
+                    <td style="color:var(--text-faint)">${esc(e.type)}</td>
                 </tr>`).join('')}</table>`;
         }
 
         function renderTech(techs) {
-            if (!techs.length) return '<div class="empty-state"><div class="icon">❓</div>No technologies detected</div>';
-            const catIcons = { CMS:'📝', Framework:'⚙️', 'JavaScript Library':'📚', 'Web Server':'🖥️', 'WAF / Security':'🛡️', CDN:'🌐', Analytics:'📊', Other:'🔧' };
+            if (!techs.length) return '<div class="empty-state">no technologies detected</div>';
+            const catTags = { CMS:'CMS', Framework:'FW', 'JavaScript Library':'JS', 'Web Server':'SRV', 'WAF / Security':'WAF', CDN:'CDN', Analytics:'ANL', Other:'?' };
             return `<div class="tech-grid">${techs.map(t => `
                 <div class="tech-card">
-                    <div class="tech-icon" style="background:rgba(6,214,160,0.1)">${catIcons[t.category]||'🔧'}</div>
+                    <div class="tech-icon">${catTags[t.category]||'?'}</div>
                     <div><div class="tech-name">${esc(t.name)}</div><div class="tech-cat">${esc(t.category)} · ${t.confidence}%</div></div>
                 </div>
             `).join('')}</div>`;
@@ -339,61 +425,61 @@
 
         function renderInsights(insights) {
             if (!insights.length) return '';
-            return `<div class="section-title" style="margin-top:20px;">💡 Security Insights</div>` +
-                insights.map(i => `<div class="alert-card" style="border-color:${sevColors[i.risk]||'#6c757d'}">
-                    <div class="alert-header"><span class="sev-badge" style="background:${sevColors[i.risk]}">${esc(i.risk)}</span><span class="alert-type">${esc(i.technology)}</span></div>
+            return `<div class="section-title" style="margin-top:22px;">// security_insights</div>` +
+                insights.map(i => `<div class="alert-card" style="border-left-color:${sevColors[i.risk]||'#54565f'}">
+                    <div class="alert-header"><span class="sev-badge" style="background:${sevColors[i.risk]||'#54565f'}">${esc(i.risk)}</span><span class="alert-type">${esc(i.technology)}</span></div>
                     <div class="alert-detail">${esc(i.insight)}</div>
                 </div>`).join('');
         }
 
         function renderHeaders(hr) {
-            if (!hr.headers) return '<div class="empty-state"><div class="icon">ℹ️</div>No header analysis data</div>';
-            const gradeColor = hr.gradeColor || '#6c757d';
+            if (!hr.headers) return '<div class="empty-state">no header analysis data</div>';
+            const gradeColor = hr.gradeColor || '#54565f';
             let rows = Object.entries(hr.headers).map(([name, h]) => `
-                <tr style="${h.present?'':'opacity:0.6'}">
-                    <td>${h.present?'✅':'❌'} ${esc(name)}</td>
-                    <td><code style="font-size:0.75rem">${h.present?esc(h.value.substring(0,60)):'MISSING'}</code></td>
-                    <td style="font-size:0.75rem;color:#64748b">${esc(h.description)}</td>
+                <tr style="${h.present?'':'opacity:0.55'}">
+                    <td>${h.present?'✓':'✕'} ${esc(name)}</td>
+                    <td><code style="font-size:11px">${h.present?esc(h.value.substring(0,60)):'MISSING'}</code></td>
+                    <td style="font-size:11px;color:var(--text-faint);font-family:var(--sans)">${esc(h.description)}</td>
                 </tr>
             `).join('');
             return `<div class="grade-display">
                 <div class="grade-big" style="color:${gradeColor}">${esc(hr.grade)}</div>
-                <div class="grade-sub">Security Score: ${hr.score}/100 · ${hr.totalPresent}/${hr.totalHeaders} headers present</div>
+                <div class="grade-sub">security score: ${hr.score}/100 · ${hr.totalPresent}/${hr.totalHeaders} headers present</div>
             </div><table><tr><th>Header</th><th>Value</th><th>Description</th></tr>${rows}</table>`;
         }
 
         function renderCloud(buckets) {
-            if (!buckets.length) return '<div class="empty-state"><div class="icon">☁️</div>No cloud buckets found (or cloud scan was skipped)</div>';
+            if (!buckets.length) return '<div class="empty-state">no cloud buckets found (or cloud scan was skipped)</div>';
             return `<table><tr><th>Bucket Name</th><th>Provider</th><th>Status</th><th>URL</th></tr>
                 ${buckets.map(b => `<tr>
                     <td>${esc(b.name)}</td>
                     <td>${esc(b.provider)}</td>
                     <td><span class="status-${(b.status||'').toLowerCase()}">${esc(b.status)}</span></td>
-                    <td><a href="${esc(b.url)}" target="_blank" style="color:#118ab2;font-size:0.8rem">Open</a></td>
+                    <td><a href="${esc(b.url)}" target="_blank" style="color:var(--cyan);font-size:11px">Open</a></td>
                 </tr>`).join('')}</table>`;
         }
 
         function renderDns(dns) {
-            if (!dns || !dns.a_records) return '<div class="empty-state"><div class="icon">🌐</div>No DNS data available</div>';
+            if (!dns || !dns.a_records) return '<div class="empty-state">no dns data available</div>';
             let html = '<table><tr><th>Record Type</th><th>Values</th></tr>';
             if (dns.a_records?.length) html += `<tr><td><strong>A</strong></td><td>${dns.a_records.map(r=>esc(r)).join(', ')}</td></tr>`;
             if (dns.aaaa_records?.length) html += `<tr><td><strong>AAAA</strong></td><td>${dns.aaaa_records.map(r=>esc(r)).join(', ')}</td></tr>`;
             if (dns.ns_records?.length) html += `<tr><td><strong>NS</strong></td><td>${dns.ns_records.map(r=>esc(r)).join(', ')}</td></tr>`;
             if (dns.mx_records?.length) html += `<tr><td><strong>MX</strong></td><td>${dns.mx_records.map(r=>esc(r)).join('<br>')}</td></tr>`;
-            if (dns.txt_records?.length) html += `<tr><td><strong>TXT</strong></td><td style="word-break:break-all">${dns.txt_records.map(r=>`<code style="font-size:0.7rem">${esc(r)}</code>`).join('<br>')}</td></tr>`;
-            html += `<tr><td><strong>Wildcard DNS</strong></td><td>${dns.wildcard ? '⚠️ YES (false positives possible)' : '✅ No'}</td></tr>`;
+            if (dns.txt_records?.length) html += `<tr><td><strong>TXT</strong></td><td style="word-break:break-all">${dns.txt_records.map(r=>`<code style="font-size:10.5px">${esc(r)}</code>`).join('<br>')}</td></tr>`;
+            html += `<tr><td><strong>Wildcard DNS</strong></td><td>${dns.wildcard ? '⚠ yes (false positives possible)' : '✓ no'}</td></tr>`;
             html += '</table>';
             return html;
         }
 
         function renderSubdomains(hosts) {
-            if (!hosts.length) return '<div class="empty-state"><div class="icon">🏠</div>No live hosts found</div>';
+            if (!hosts.length) return '<div class="empty-state">no live hosts found</div>';
             return `<table><tr><th>Subdomain</th><th>Status</th><th>Title</th><th>Server</th></tr>
                 ${hosts.map(h => `<tr>
-                    <td><a href="${esc(h.url)}" target="_blank" style="color:#118ab2">${esc(h.subdomain)}</a></td>
+                    <td><a href="${esc(h.url)}" target="_blank" style="color:var(--cyan)">${esc(h.subdomain)}</a></td>
                     <td>${h.status}</td>
-                    <td style="font-size:0.8rem;max-width:200px;overflow:hidden;text-overflow:ellipsis">${esc(h.title)}</td>
-                    <td style="font-size:0.8rem;color:#64748b">${esc(h.server)}</td>
+                    <td style="font-size:11.5px;max-width:200px;overflow:hidden;text-overflow:ellipsis;font-family:var(--sans);color:var(--text-dim)">${esc(h.title)}</td>
+                    <td style="font-size:11.5px;color:var(--text-faint)">${esc(h.server)}</td>
                 </tr>`).join('')}</table>`;
         }
 
