@@ -14,6 +14,7 @@ import aiohttp
 
 from fastrecon.cloud_hunter import hunt_cloud_storage
 from fastrecon.config import DEFAULT_CONCURRENCY, SCAN_MODES
+from fastrecon.crawler import crawl
 from fastrecon.db import ScanDatabase
 from fastrecon.discovery import run_discovery
 from fastrecon.dns_recon import run_dns_recon
@@ -251,14 +252,25 @@ class ReconEngine:
             if not self.skip_vulns and self.primary_url:
                 self._update_progress("Vulnerability Scanning", 7, total_phases)
                 try:
+                    # Recursively crawl the target (depth/page-limited by mode)
+                    # to discover real URLs, parameters, and forms across the
+                    # whole app — not just the landing page.
+                    crawl_links, crawl_forms = await crawl(
+                        session, self.primary_url, self.target,
+                        seed_html=self.primary_body, mode=self.mode,
+                    )
+                    if crawl_links or crawl_forms:
+                        print(f"  [CRAWL] Discovered {len(crawl_links)} link(s), {len(crawl_forms)} form(s)")
+
                     # Build an injection corpus from discovered endpoints, JS API
-                    # routes, in-page links, and forms — so injection tests hit
-                    # REAL parameters instead of only the homepage with guesses.
-                    forms = extract_forms(self.primary_body, self.primary_url)
+                    # routes, in-page + crawled links, and forms — so injection
+                    # tests hit REAL parameters instead of homepage guesses.
+                    forms = extract_forms(self.primary_body, self.primary_url) + crawl_forms
+                    all_links = sorted(set(self.html_links) | set(crawl_links))
                     injection_targets = build_injection_targets(
                         self.primary_url,
                         self.target,
-                        html_links=self.html_links,
+                        html_links=all_links,
                         api_endpoints=self.api_endpoints,
                         endpoints=self.endpoints,
                         forms=forms,
