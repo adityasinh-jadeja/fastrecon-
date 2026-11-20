@@ -6,6 +6,7 @@ import asyncio
 import re
 import ssl
 from datetime import datetime, timezone
+from urllib.parse import urljoin
 
 from fastrecon.config import (
     ENDPOINT_PATHS_LARGE,
@@ -222,27 +223,42 @@ async def extract_js_links(session, base_url, html_body, semaphore):
     return list(js_urls), list(api_endpoints)
 
 
+_NON_HTTP_SCHEMES = ("mailto:", "tel:", "javascript:", "data:", "#")
+
+
+def _resolve_link(raw, base_url):
+    """Resolve a raw href/action to an absolute http(s) URL, or None to drop it."""
+    link = (raw or "").strip()
+    if not link or link.lower().startswith(_NON_HTTP_SCHEMES):
+        return None
+    # urljoin handles '/abs', 'relative.asp?x=1', './rel', '../up', and absolute URLs.
+    absolute = urljoin(base_url if base_url.endswith("/") else base_url + "/", link)
+    return absolute if absolute.startswith("http") else None
+
+
 async def extract_html_links(html_body, base_url):
-    """Extract all links from HTML response."""
+    """
+    Extract all links from an HTML response as absolute http(s) URLs.
+
+    Relative links (e.g. 'showforum.asp?id=1', './login.asp?x=1') are resolved
+    against base_url — previously they were dropped, which starved the injection
+    engine of real parameters.
+    """
     links = set()
 
     # <a href="...">
-    href_pattern = re.compile(r'<a[^>]+href=["\']([^"\'#]+)["\']', re.IGNORECASE)
+    href_pattern = re.compile(r'<a[^>]+href=["\']([^"\']+)["\']', re.IGNORECASE)
     for match in href_pattern.finditer(html_body):
-        link = match.group(1)
-        if link.startswith("/"):
-            link = base_url.rstrip("/") + link
-        if link.startswith("http"):
-            links.add(link)
+        resolved = _resolve_link(match.group(1), base_url)
+        if resolved:
+            links.add(resolved)
 
     # <form action="...">
     form_pattern = re.compile(r'<form[^>]+action=["\']([^"\']+)["\']', re.IGNORECASE)
     for match in form_pattern.finditer(html_body):
-        action = match.group(1)
-        if action.startswith("/"):
-            action = base_url.rstrip("/") + action
-        if action.startswith("http"):
-            links.add(action)
+        resolved = _resolve_link(match.group(1), base_url)
+        if resolved:
+            links.add(resolved)
 
     return list(links)
 
