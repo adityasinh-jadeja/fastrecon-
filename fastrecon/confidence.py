@@ -33,6 +33,8 @@ _CONFIRMED_TYPES = {
     "HTTP Method Tampering",
     "Server Version Disclosure",
     "Technology Disclosure",
+    "GraphQL Introspection",
+    "Sensitive File Exposure",
 }
 
 # Heuristic signals that strongly suggest a bug but warrant manual confirmation.

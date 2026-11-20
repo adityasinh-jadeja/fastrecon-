@@ -21,6 +21,7 @@ from fastrecon.db import ScanDatabase
 from fastrecon.discovery import run_discovery
 from fastrecon.dns_recon import run_dns_recon
 from fastrecon.endpoint_discovery import extract_forms, run_endpoint_discovery
+from fastrecon.exposures import run_exposures_scan
 from fastrecon.fingerprint import run_fingerprinting
 from fastrecon.header_analyzer import run_header_analysis
 from fastrecon.port_scanner import run_port_scan
@@ -291,6 +292,13 @@ class ReconEngine:
                         )
                         if bypass_findings:
                             self.vulnerabilities.extend(bypass_findings)
+
+                        # GraphQL introspection + content-verified file exposure.
+                        exposure_findings = await run_exposures_scan(
+                            session, self.primary_url, semaphore,
+                        )
+                        if exposure_findings:
+                            self.vulnerabilities.extend(exposure_findings)
 
                     self.alerts.extend(self.vulnerabilities)
                     for vuln in self.vulnerabilities:
