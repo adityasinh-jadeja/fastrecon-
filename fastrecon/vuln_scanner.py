@@ -16,6 +16,7 @@ import re
 import secrets
 import ssl
 from datetime import datetime, timezone
+from urllib.parse import parse_qsl, urlencode, urljoin, urlparse
 
 from fastrecon.config import (
     CRLF_PAYLOADS,
@@ -28,11 +29,12 @@ from fastrecon.config import (
 )
 
 
-async def _fetch(session, url, method="GET", headers=None, timeout=VULN_SCAN_TIMEOUT):
+async def _fetch(session, url, method="GET", headers=None, timeout=VULN_SCAN_TIMEOUT, data=None):
     """
     Helper to make HTTP requests with error handling.
     Returns (status, headers_dict, body, tls_unverified).
     tls_unverified is True when the response came over an unverified TLS connection.
+    `data` is an optional dict sent as a form-encoded body for POST/PUT/PATCH.
     """
     tls_unverified = url.startswith("https://")  # We always disable cert verification
 
@@ -48,6 +50,8 @@ async def _fetch(session, url, method="GET", headers=None, timeout=VULN_SCAN_TIM
         }
         if headers:
             kwargs["headers"] = headers
+        if data is not None:
+            kwargs["data"] = data
 
         if method == "GET":
             async with session.get(url, **kwargs) as response:
@@ -660,7 +664,287 @@ async def check_directory_listing(session, url, semaphore):
     return findings
 
 
-async def run_vuln_scan(session, target, base_url, mode="normal", concurrency=10):
+# ──────────────────────────────────────────────────────────────────────────
+# Parameterized injection: test REAL discovered endpoints & parameters, not
+# just the homepage with guessed parameter names. This is what turns the
+# scanner from a header-checker into something that finds real injection bugs.
+# ──────────────────────────────────────────────────────────────────────────
+
+# Parameter names that commonly drive redirects (used to prioritise which
+# real parameters get open-redirect payloads).
+_REDIRECT_PARAM_HINTS = {
+    "redirect", "url", "next", "return", "returnurl", "goto", "target",
+    "rurl", "dest", "destination", "redir", "redirect_uri", "redirect_url",
+    "callback", "continue", "forward", "to", "out", "link",
+}
+
+
+def _in_scope(url, target):
+    """True if the URL's host is the target domain or one of its subdomains."""
+    try:
+        host = (urlparse(url).hostname or "").lower()
+    except ValueError:
+        return False
+    target = (target or "").lower().lstrip(".")
+    if not host or not target:
+        return False
+    return host == target or host.endswith("." + target)
+
+
+def _inject(params, name, value):
+    """Return a copy of params with a single parameter's value replaced."""
+    merged = dict(params)
+    merged[name] = value
+    return merged
+
+
+async def _send(session, url, method, params, extra_headers=None):
+    """
+    Send a request carrying `params` either as a query string (GET) or a
+    form-encoded body (POST). Returns (status, headers, body, tls_unverified).
+    """
+    if method == "POST":
+        return await _fetch(session, url, method="POST", headers=extra_headers, data=params)
+    query = urlencode(params, doseq=True)
+    sep = "&" if "?" in url else "?"
+    full_url = f"{url}{sep}{query}" if query else url
+    return await _fetch(session, full_url, method="GET", headers=extra_headers)
+
+
+def build_injection_targets(
+    base_url, target,
+    html_links=None, api_endpoints=None, endpoints=None, forms=None,
+    max_targets=40,
+):
+    """
+    Build a corpus of injectable targets from everything the recon phases
+    discovered. Each target is a dict:
+        {"url": <path without query>, "method": "GET"/"POST",
+         "params": {name: value}, "source": <where it came from>}
+
+    Only in-scope URLs (the target domain or its subdomains) that actually
+    carry parameters are included, de-duplicated by (method, path, param set).
+    """
+    targets = []
+    seen = set()
+
+    def add(url, method, params, source):
+        if not params:
+            return
+        if not urlparse(url).scheme.startswith("http"):
+            return
+        if not _in_scope(url, target):
+            return
+        # Replace blank values with a probe-friendly default.
+        params = {k: (v if v else "fastrecon") for k, v in params.items()}
+        path_only = url.split("?", 1)[0]
+        key = (method, path_only, frozenset(params.keys()))
+        if key in seen:
+            return
+        seen.add(key)
+        targets.append({"url": path_only, "method": method, "params": params, "source": source})
+
+    # 1. HTML links with query strings (the richest source of real params).
+    for link in (html_links or []):
+        qs = dict(parse_qsl(urlparse(link).query, keep_blank_values=True))
+        if qs:
+            add(link, "GET", qs, "html_link")
+
+    # 2. Fuzzed endpoints that happen to carry a query string.
+    for ep in (endpoints or []):
+        url = ep.get("url", "") if isinstance(ep, dict) else str(ep)
+        qs = dict(parse_qsl(urlparse(url).query, keep_blank_values=True))
+        if qs:
+            add(url, "GET", qs, "endpoint")
+
+    # 3. API endpoints extracted from JS (relative paths, resolved to absolute).
+    for api in (api_endpoints or []):
+        path = api if str(api).startswith("/") else "/" + str(api)
+        full = urljoin(base_url, path)
+        qs = dict(parse_qsl(urlparse(full).query, keep_blank_values=True))
+        if qs:
+            add(full, "GET", qs, "api")
+
+    # 4. HTML forms: action + real input field names, GET or POST.
+    for form in (forms or []):
+        action = form.get("action") or base_url
+        method = (form.get("method") or "GET").upper()
+        if method not in ("GET", "POST"):
+            method = "GET"
+        params = form.get("params") or {}
+        if params:
+            add(action, method, params, "form")
+
+    return targets[:max_targets]
+
+
+async def check_xss_on_target(session, t, semaphore, max_params=6):
+    """Reflected XSS against a real endpoint's real parameters."""
+    findings = []
+    params = t.get("params") or {}
+    if not params:
+        return findings
+    url, method = t["url"], t["method"]
+
+    async with semaphore:
+        _, _, baseline_body, _ = await _send(session, url, method, params)
+
+        for name in list(params)[:max_params]:
+            for payload in XSS_PAYLOADS[:3]:
+                injected = _inject(params, name, payload)
+                status, headers, body, tls_unverified = await _send(session, url, method, injected)
+
+                if not body or payload not in body:
+                    continue
+                if baseline_body and payload in baseline_body:
+                    continue
+                if not _is_payload_in_executable_context(payload, body):
+                    continue
+
+                findings.append({
+                    "severity": "MEDIUM",
+                    "type": "Reflected XSS",
+                    "asset": url,
+                    "service": "Web Application",
+                    "details": (
+                        f"XSS payload reflected in executable HTML context via the "
+                        f"'{name}' parameter of a discovered {method} endpoint. "
+                        f"Manual confirmation recommended."
+                    ),
+                    "evidence": f"Payload: {payload} | Parameter: {name} | Method: {method} | Source: {t.get('source', '')}",
+                    "cname_pattern": "",
+                    "tls_unverified": tls_unverified,
+                    "time": datetime.now(timezone.utc).strftime("%H:%M:%S"),
+                    "remediation": "Encode all user input before rendering. Use a Content-Security-Policy header.",
+                })
+                return findings  # one XSS per endpoint is enough
+
+    return findings
+
+
+async def check_sqli_on_target(session, t, semaphore, max_params=6):
+    """SQL injection against a real endpoint's real parameters, baseline-filtered."""
+    findings = []
+    params = t.get("params") or {}
+    if not params:
+        return findings
+    url, method = t["url"], t["method"]
+
+    async with semaphore:
+        _, _, baseline_body, _ = await _send(session, url, method, params)
+        baseline_lower = baseline_body.lower() if baseline_body else ""
+        baseline_patterns = {
+            p for p in SQL_ERROR_PATTERNS if re.search(p, baseline_lower)
+        }
+
+        for name in list(params)[:max_params]:
+            for payload in SQLI_PAYLOADS[:3]:
+                injected = _inject(params, name, payload)
+                status, headers, body, tls_unverified = await _send(session, url, method, injected)
+
+                if not body:
+                    continue
+                body_lower = body.lower()
+                for pattern in SQL_ERROR_PATTERNS:
+                    if pattern in baseline_patterns:
+                        continue
+                    if re.search(pattern, body_lower):
+                        findings.append({
+                            "severity": "CRITICAL",
+                            "type": "SQL Injection",
+                            "asset": url,
+                            "service": "Web Application / Database",
+                            "details": (
+                                f"SQL error triggered by injecting the '{name}' parameter of a "
+                                f"discovered {method} endpoint (error not present in baseline)."
+                            ),
+                            "evidence": f"Payload: {payload} | Parameter: {name} | Pattern: {pattern} | Source: {t.get('source', '')}",
+                            "cname_pattern": "",
+                            "tls_unverified": tls_unverified,
+                            "time": datetime.now(timezone.utc).strftime("%H:%M:%S"),
+                            "remediation": "Use parameterized queries / prepared statements. Never concatenate user input into SQL.",
+                        })
+                        return findings
+
+    return findings
+
+
+async def check_open_redirect_on_target(session, t, semaphore, max_params=8):
+    """Open redirect against a real endpoint's real parameters."""
+    findings = []
+    params = t.get("params") or {}
+    if not params:
+        return findings
+    url, method = t["url"], t["method"]
+
+    # Prioritise redirect-looking parameters, but fall back to all of them.
+    ordered = sorted(params, key=lambda n: n.lower() not in _REDIRECT_PARAM_HINTS)
+
+    async with semaphore:
+        for name in ordered[:max_params]:
+            for payload in OPEN_REDIRECT_PAYLOADS[:2]:
+                injected = _inject(params, name, payload)
+                status, headers, body, tls_unverified = await _send(session, url, method, injected)
+
+                if status in (301, 302, 307, 308) and headers:
+                    location = headers.get("Location", "")
+                    if "evil.com" in location:
+                        findings.append({
+                            "severity": "MEDIUM",
+                            "type": "Open Redirect",
+                            "asset": url,
+                            "service": "Web Application",
+                            "details": (
+                                f"Open redirect via the '{name}' parameter of a discovered "
+                                f"{method} endpoint — redirects to an attacker-controlled URL."
+                            ),
+                            "evidence": f"Parameter: {name} | Redirect: {location} | Source: {t.get('source', '')}",
+                            "cname_pattern": "",
+                            "tls_unverified": tls_unverified,
+                            "time": datetime.now(timezone.utc).strftime("%H:%M:%S"),
+                            "remediation": "Validate redirect URLs against an allowlist. Prefer relative paths.",
+                        })
+                        return findings
+
+    return findings
+
+
+async def run_param_vuln_scan(session, targets, semaphore):
+    """Run all parameterized injection checks across the discovered target corpus."""
+    tasks = []
+    for t in targets:
+        tasks.extend([
+            check_xss_on_target(session, t, semaphore),
+            check_sqli_on_target(session, t, semaphore),
+            check_open_redirect_on_target(session, t, semaphore),
+        ])
+
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    findings = []
+    for result in results:
+        if isinstance(result, list):
+            findings.extend(result)
+    return findings
+
+
+def _dedupe_findings(findings):
+    """Drop duplicate findings keyed by (type, asset, parameter)."""
+    seen = set()
+    unique = []
+    for f in findings:
+        param = ""
+        match = re.search(r"Parameter:\s*([^\s|]+)", f.get("evidence", ""))
+        if match:
+            param = match.group(1)
+        key = (f.get("type"), f.get("asset"), param)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(f)
+    return unique
+
+
+async def run_vuln_scan(session, target, base_url, mode="normal", concurrency=10, targets=None):
     """
     Execute all vulnerability checks against a target.
 
@@ -670,6 +954,9 @@ async def run_vuln_scan(session, target, base_url, mode="normal", concurrency=10
         base_url: Base URL (e.g., https://example.com)
         mode: Scan mode
         concurrency: Max concurrent vuln test requests
+        targets: Optional corpus of discovered endpoints with real parameters
+                 (from build_injection_targets). When provided, injection tests
+                 run against these real parameters in addition to the base URL.
 
     Returns:
         List of vulnerability/finding dicts
@@ -716,6 +1003,25 @@ async def run_vuln_scan(session, target, base_url, mode="normal", concurrency=10
                 print("    ✓ Clean")
         except Exception as e:
             print(f"    ✗ Check failed: {e}")
+
+    # Parameterized injection against REAL discovered endpoints & parameters.
+    if mode != "light" and targets:
+        print(f"  [VULN] Testing {len(targets)} discovered endpoint(s) with their real parameters...")
+        try:
+            param_findings = await run_param_vuln_scan(session, targets, semaphore)
+            if param_findings:
+                all_findings.extend(param_findings)
+                for f in param_findings:
+                    icon = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🔵", "LOW": "🟡"}.get(f["severity"], "⚪")
+                    tls_note = " [TLS unverified]" if f.get("tls_unverified") else ""
+                    print(f"    {icon} {f['severity']}: {f['type']} @ {f['asset']}{tls_note}")
+            else:
+                print("    ✓ No injection findings on discovered endpoints")
+        except Exception as e:
+            print(f"    ✗ Parameterized scan failed: {e}")
+
+    # De-duplicate (base-URL guessed-param checks can overlap real-param checks).
+    all_findings = _dedupe_findings(all_findings)
 
     # Sort by severity
     severity_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "INFO": 4}

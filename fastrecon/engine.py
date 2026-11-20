@@ -17,7 +17,7 @@ from fastrecon.config import DEFAULT_CONCURRENCY, SCAN_MODES
 from fastrecon.db import ScanDatabase
 from fastrecon.discovery import run_discovery
 from fastrecon.dns_recon import run_dns_recon
-from fastrecon.endpoint_discovery import run_endpoint_discovery
+from fastrecon.endpoint_discovery import extract_forms, run_endpoint_discovery
 from fastrecon.fingerprint import run_fingerprinting
 from fastrecon.header_analyzer import run_header_analysis
 from fastrecon.port_scanner import run_port_scan
@@ -29,7 +29,7 @@ from fastrecon.reporter import (
     save_report,
 )
 from fastrecon.takeover import check_takeover, check_takeover_cname
-from fastrecon.vuln_scanner import run_vuln_scan
+from fastrecon.vuln_scanner import build_injection_targets, run_vuln_scan
 from fastrecon.webhooks import AlertBatcher, send_scan_summary
 
 
@@ -251,8 +251,23 @@ class ReconEngine:
             if not self.skip_vulns and self.primary_url:
                 self._update_progress("Vulnerability Scanning", 7, total_phases)
                 try:
+                    # Build an injection corpus from discovered endpoints, JS API
+                    # routes, in-page links, and forms — so injection tests hit
+                    # REAL parameters instead of only the homepage with guesses.
+                    forms = extract_forms(self.primary_body, self.primary_url)
+                    injection_targets = build_injection_targets(
+                        self.primary_url,
+                        self.target,
+                        html_links=self.html_links,
+                        api_endpoints=self.api_endpoints,
+                        endpoints=self.endpoints,
+                        forms=forms,
+                    )
+                    if injection_targets:
+                        print(f"  [VULN] Built {len(injection_targets)} injectable target(s) from recon data")
                     self.vulnerabilities = await run_vuln_scan(
-                        session, self.target, self.primary_url, mode=self.mode
+                        session, self.target, self.primary_url,
+                        mode=self.mode, targets=injection_targets,
                     )
                     self.alerts.extend(self.vulnerabilities)
                     for vuln in self.vulnerabilities:

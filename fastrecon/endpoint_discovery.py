@@ -247,6 +247,63 @@ async def extract_html_links(html_body, base_url):
     return list(links)
 
 
+def extract_forms(html_body, base_url):
+    """
+    Extract HTML forms with their action, method, and input field names.
+
+    Returns a list of dicts:
+        {"action": <absolute URL>, "method": "GET"/"POST", "params": {name: value}}
+
+    These feed the vulnerability scanner so injection tests hit real form
+    parameters (not guessed names). Submit/button/file inputs are skipped.
+    """
+    forms = []
+    if not html_body:
+        return forms
+
+    for form_match in re.finditer(r"<form\b[^>]*>(.*?)</form>", html_body, re.IGNORECASE | re.DOTALL):
+        open_tag = form_match.group(0)
+        inner = form_match.group(1)
+
+        action_m = re.search(r'action=["\']([^"\']*)["\']', open_tag, re.IGNORECASE)
+        method_m = re.search(r'method=["\']([^"\']*)["\']', open_tag, re.IGNORECASE)
+        action = action_m.group(1).strip() if action_m else ""
+        method = (method_m.group(1).strip().upper() if method_m else "GET")
+        if method not in ("GET", "POST"):
+            method = "GET"
+
+        # Resolve the action to an absolute URL.
+        if action.startswith("//"):
+            action = "https:" + action
+        elif action.startswith("/"):
+            action = base_url.rstrip("/") + action
+        elif action and not action.startswith("http"):
+            action = base_url.rstrip("/") + "/" + action
+        elif not action:
+            action = base_url  # form posts back to itself
+
+        params = {}
+        for field_match in re.finditer(r"<(?:input|textarea|select)\b[^>]*>", inner, re.IGNORECASE):
+            field = field_match.group(0)
+            name_m = re.search(r'name=["\']([^"\']+)["\']', field, re.IGNORECASE)
+            if not name_m:
+                continue
+            name = name_m.group(1)
+
+            type_m = re.search(r'type=["\']([^"\']+)["\']', field, re.IGNORECASE)
+            field_type = type_m.group(1).lower() if type_m else "text"
+            if field_type in ("submit", "button", "image", "reset", "file"):
+                continue
+
+            value_m = re.search(r'value=["\']([^"\']*)["\']', field, re.IGNORECASE)
+            params[name] = value_m.group(1) if (value_m and value_m.group(1)) else "fastrecon"
+
+        if params:
+            forms.append({"action": action, "method": method, "params": params})
+
+    return forms
+
+
 def generate_alerts_from_endpoints(endpoints, target):
     """Generate security alerts from discovered endpoints."""
     alerts = []
