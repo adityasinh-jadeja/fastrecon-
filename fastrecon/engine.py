@@ -66,6 +66,7 @@ class ReconEngine:
         skip_ports=False,
         skip_vulns=False,
         skip_endpoints=False,
+        skip_subdomains=False,
         wordlist=None,
         mode="normal",
         report_format="json",
@@ -81,6 +82,7 @@ class ReconEngine:
         self.skip_ports = skip_ports
         self.skip_vulns = skip_vulns
         self.skip_endpoints = skip_endpoints
+        self.skip_subdomains = skip_subdomains
         self.wordlist = wordlist
         self.mode = mode
         self.report_format = report_format
@@ -177,7 +179,13 @@ class ReconEngine:
 
             # ── Phase 2: Subdomain Discovery ──
             self._update_progress("Subdomain Discovery", 2, total_phases)
-            self.discovered_subdomains = await run_discovery(session, self.target)
+            if self.skip_subdomains:
+                print(f"\n{'='*60}")
+                print("  PHASE 2: SUBDOMAIN DISCOVERY [SKIPPED — target host only]")
+                print(f"{'='*60}")
+                self.discovered_subdomains = {self.target}
+            else:
+                self.discovered_subdomains = await run_discovery(session, self.target)
 
             # State tracking: identify NEW subdomains via SQLite diff engine
             self.new_subdomains = self.db.get_new_subdomains(

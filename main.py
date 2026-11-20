@@ -16,11 +16,16 @@ from fastrecon.validation import is_safe_target
 
 
 def _setup_encoding():
-    """Ensure UTF-8 output on Windows consoles."""
+    """Ensure UTF-8 output on Windows consoles, line-buffered so scan progress
+    streams in real time even when stdout is redirected to a file or pipe."""
     if sys.platform == "win32":
         try:
-            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-            sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+            sys.stdout = io.TextIOWrapper(
+                sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True,
+            )
+            sys.stderr = io.TextIOWrapper(
+                sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True,
+            )
         except Exception:
             pass
 
@@ -96,6 +101,12 @@ def parse_args():
         "--skip-endpoints",
         action="store_true",
         help="Skip endpoint discovery phase",
+    )
+    parser.add_argument(
+        "--skip-subdomains",
+        action="store_true",
+        help="Skip subdomain enumeration (scan only the target host). "
+             "Much faster when you already know the exact host.",
     )
     parser.add_argument(
         "--wordlist",
@@ -236,6 +247,7 @@ def main():
         skip_ports=args.skip_ports,
         skip_vulns=args.skip_vulns,
         skip_endpoints=args.skip_endpoints,
+        skip_subdomains=args.skip_subdomains,
         wordlist=wordlist,
         mode=args.mode,
         report_format=args.report,
