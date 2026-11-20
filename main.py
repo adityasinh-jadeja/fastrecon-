@@ -103,6 +103,18 @@ def parse_args():
         help="Path to custom bucket suffix wordlist (one suffix per line)",
     )
     parser.add_argument(
+        "--scope",
+        default=None,
+        help="Comma-separated in-scope host patterns for active testing "
+             "(e.g. 'example.com,*.example.com,!admin.example.com'). "
+             "Defaults to the target domain and its subdomains.",
+    )
+    parser.add_argument(
+        "--scope-file",
+        default=None,
+        help="Path to a scope file (one host pattern per line; '!' excludes, '#' comments)",
+    )
+    parser.add_argument(
         "--web",
         action="store_true",
         help="Launch the Flask web UI instead of running a CLI scan",
@@ -153,6 +165,26 @@ def load_wordlist(path):
         sys.exit(1)
 
 
+def load_scope(scope_arg, scope_file):
+    """Build a list of scope patterns from --scope and/or --scope-file."""
+    patterns = []
+    if scope_arg:
+        patterns.extend(p.strip() for p in scope_arg.split(",") if p.strip())
+    if scope_file:
+        try:
+            with open(scope_file, "r", encoding="utf-8") as f:
+                patterns.extend(
+                    line.strip() for line in f
+                    if line.strip() and not line.startswith("#")
+                )
+        except FileNotFoundError:
+            print(f"[!] Scope file not found: {scope_file}")
+            sys.exit(1)
+    if patterns:
+        print(f"  Scope: {len(patterns)} pattern(s) for active testing")
+    return patterns or None
+
+
 def main():
     _setup_encoding()
     args = parse_args()
@@ -190,6 +222,9 @@ def main():
     # Load custom wordlist
     wordlist = load_wordlist(args.wordlist)
 
+    # Assemble scope patterns from --scope and/or --scope-file.
+    scope_patterns = load_scope(args.scope, args.scope_file)
+
     # Create and run engine
     engine = ReconEngine(
         target=args.target,
@@ -204,6 +239,7 @@ def main():
         wordlist=wordlist,
         mode=args.mode,
         report_format=args.report,
+        scope=scope_patterns,
     )
 
     try:

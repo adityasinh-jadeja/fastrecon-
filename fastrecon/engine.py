@@ -32,6 +32,7 @@ from fastrecon.reporter import (
     generate_report,
     save_report,
 )
+from fastrecon.scope import Scope
 from fastrecon.takeover import check_takeover, check_takeover_cname
 from fastrecon.vuln_scanner import build_injection_targets, run_vuln_scan
 from fastrecon.webhooks import AlertBatcher, send_scan_summary
@@ -69,6 +70,7 @@ class ReconEngine:
         mode="normal",
         report_format="json",
         progress_callback=None,
+        scope=None,
     ):
         self.target = target
         self.output_file = output_file
@@ -83,6 +85,10 @@ class ReconEngine:
         self.mode = mode
         self.report_format = report_format
         self.progress_callback = progress_callback
+
+        # Authorization allowlist for ACTIVE testing. With no patterns given it
+        # defaults to the target domain + subdomains (unchanged behaviour).
+        self.scope = Scope.from_spec(scope, default_target=target)
 
         # Apply scan mode settings
         mode_config = SCAN_MODES.get(mode, SCAN_MODES["normal"])
@@ -252,7 +258,13 @@ class ReconEngine:
                 print(f"{'='*60}")
 
             # ── Phase 7: Vulnerability Scanning ──
-            if not self.skip_vulns and self.primary_url:
+            active_allowed = self.scope.in_scope(self.primary_url) if self.primary_url else False
+            if not self.skip_vulns and self.primary_url and not active_allowed:
+                print(f"\n{'='*60}")
+                print("  PHASE 7: VULNERABILITY SCANNING [SKIPPED — OUT OF SCOPE]")
+                print(f"  {self.primary_url} is not covered by the configured scope.")
+                print(f"{'='*60}")
+            elif not self.skip_vulns and self.primary_url:
                 self._update_progress("Vulnerability Scanning", 7, total_phases)
                 try:
                     # Recursively crawl the target (depth/page-limited by mode)
@@ -277,6 +289,7 @@ class ReconEngine:
                         api_endpoints=self.api_endpoints,
                         endpoints=self.endpoints,
                         forms=forms,
+                        scope=self.scope,
                     )
                     if injection_targets:
                         print(f"  [VULN] Built {len(injection_targets)} injectable target(s) from recon data")

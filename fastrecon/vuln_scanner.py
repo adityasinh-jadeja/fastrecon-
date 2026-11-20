@@ -714,7 +714,7 @@ async def _send(session, url, method, params, extra_headers=None):
 def build_injection_targets(
     base_url, target,
     html_links=None, api_endpoints=None, endpoints=None, forms=None,
-    max_targets=40,
+    max_targets=40, scope=None,
 ):
     """
     Build a corpus of injectable targets from everything the recon phases
@@ -724,16 +724,22 @@ def build_injection_targets(
 
     Only in-scope URLs (the target domain or its subdomains) that actually
     carry parameters are included, de-duplicated by (method, path, param set).
+
+    If a Scope object is passed, it governs what counts as in scope; otherwise
+    the default is the target domain and its subdomains.
     """
     targets = []
     seen = set()
+
+    def _scoped(url):
+        return scope.in_scope(url) if scope else _in_scope(url, target)
 
     def add(url, method, params, source):
         if not params:
             return
         if not urlparse(url).scheme.startswith("http"):
             return
-        if not _in_scope(url, target):
+        if not _scoped(url):
             return
         # Replace blank values with a probe-friendly default.
         params = {k: (v if v else "fastrecon") for k, v in params.items()}
