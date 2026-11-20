@@ -60,6 +60,10 @@ def assign_confidence(finding):
     if ftype == "Information Disclosure":
         return NEEDS_REVIEW if severity == "LOW" else PROBABLE
 
+    # Access-control bypasses are strong but need manual confirmation.
+    if "Bypass" in ftype:
+        return PROBABLE
+
     if ftype in _CONFIRMED_TYPES:
         return CONFIRMED
 

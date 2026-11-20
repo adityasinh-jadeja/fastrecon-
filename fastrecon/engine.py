@@ -12,6 +12,7 @@ import time
 
 import aiohttp
 
+from fastrecon.bypass import run_bypass_scan
 from fastrecon.cloud_hunter import hunt_cloud_storage
 from fastrecon.confidence import annotate_confidence, confidence_breakdown
 from fastrecon.config import DEFAULT_CONCURRENCY, SCAN_MODES
@@ -282,6 +283,15 @@ class ReconEngine:
                         session, self.target, self.primary_url,
                         mode=self.mode, targets=injection_targets,
                     )
+
+                    # Probe 401/403 endpoints for access-control bypasses.
+                    if self.mode != "light":
+                        bypass_findings = await run_bypass_scan(
+                            session, self.endpoints, semaphore,
+                        )
+                        if bypass_findings:
+                            self.vulnerabilities.extend(bypass_findings)
+
                     self.alerts.extend(self.vulnerabilities)
                     for vuln in self.vulnerabilities:
                         await batcher.add(vuln)
