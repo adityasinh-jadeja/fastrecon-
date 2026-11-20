@@ -13,6 +13,7 @@ import time
 import aiohttp
 
 from fastrecon.cloud_hunter import hunt_cloud_storage
+from fastrecon.confidence import annotate_confidence, confidence_breakdown
 from fastrecon.config import DEFAULT_CONCURRENCY, SCAN_MODES
 from fastrecon.crawler import crawl
 from fastrecon.db import ScanDatabase
@@ -310,6 +311,17 @@ class ReconEngine:
                 print(f"\n{'='*60}")
                 print("  PHASE 9: CLOUD STORAGE HUNTING [SKIPPED]")
                 print(f"{'='*60}")
+
+            # Annotate every finding with a confidence level (confirmed /
+            # probable / needs-review) so results can be triaged by trust,
+            # not just severity. Mutates the shared alert dicts in place.
+            annotate_confidence(self.alerts)
+            breakdown = confidence_breakdown(self.alerts)
+            print(
+                f"\n  Confidence: {breakdown['confirmed']} confirmed, "
+                f"{breakdown['probable']} probable, "
+                f"{breakdown['needs-review']} needs-review"
+            )
 
             # ── Phase 10: Report Generation ──
             self._update_progress("Generating Report", 10, total_phases)
